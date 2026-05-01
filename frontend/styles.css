@@ -89,6 +89,10 @@ a:hover { color: var(--accent-tertiary); }
 .nav-link { color: var(--text-secondary); padding: 8px 14px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; transition: var(--transition); text-decoration: none; }
 .nav-link:hover, .nav-link.active { color: var(--text-primary); background: rgba(99, 102, 241, 0.1); }
 .nav-link.active { color: var(--accent-primary); }
+.page-link { font-weight: 700 !important; font-size: 0.95rem !important; padding: 6px 14px !important; border-radius: 8px !important; }
+.page-link:hover { background: rgba(99, 102, 241, 0.15) !important; }
+.active-page { background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.15)) !important; color: var(--accent-primary) !important; border: 1px solid rgba(99, 102, 241, 0.3); }
+.nav-divider { width: 1px; height: 24px; background: rgba(255, 255, 255, 0.15); margin: 0 4px; list-style: none; align-self: center; }
 .nav-actions .btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--gradient-primary); color: white; border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; transition: var(--transition); text-decoration: none; }
 .nav-actions .btn-primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-glow); color: white; }
 .mobile-toggle { display: none; background: none; border: none; cursor: pointer; padding: 4px; }

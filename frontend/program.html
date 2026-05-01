@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Velocity | Program Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="bg-animation">
+        <div class="neural-network"></div>
+        <div class="gradient-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div></div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="navbar scrolled" id="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <span class="logo-icon">🚀</span>
+                <span class="logo-text">AI<span class="accent">Velocity</span></span>
+                <span class="logo-badge">AP</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link page-link">🏆 AI Wins</a></li>
+                <li><a href="/program.html" class="nav-link page-link active-page">📊 Program</a></li>
+                <li><a href="/training.html" class="nav-link page-link">🎓 Training</a></li>
+                <li class="nav-divider"></li>
+                <li><a href="#overview" class="nav-link active">Overview</a></li>
+                <li><a href="#milestones" class="nav-link">Milestones</a></li>
+                <li><a href="#resources" class="nav-link">Resources</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="https://amazon.sharepoint.com/:l:/s/AI-Velocity-site" target="_blank" class="btn-primary">✨ Submit Idea</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Program Overview -->
+    <section class="dashboard-hero" id="overview">
+        <div class="container">
+            <div class="dashboard-header">
+                <div>
+                    <h1 class="dashboard-title">Program <span class="gradient-text">Dashboard</span></h1>
+                    <p class="dashboard-subtitle">AI Velocity Program overview, goals, and milestones for Accounts Payable</p>
+                </div>
+                <div class="data-source-badge"><span class="pulse-dot"></span><span>Program Status: Active</span></div>
+            </div>
+
+            <!-- Program KPIs -->
+            <div class="kpi-grid kpi-grid-6" id="programKpis">
+                <div class="kpi-card kpi-total"><div class="kpi-icon">🎯</div><div class="kpi-value" id="pgTarget">200</div><div class="kpi-label">2026 Target Ideas</div></div>
+                <div class="kpi-card kpi-prod"><div class="kpi-icon">📝</div><div class="kpi-value" id="pgSubmitted">--</div><div class="kpi-label">Ideas Submitted</div></div>
+                <div class="kpi-card kpi-uat"><div class="kpi-icon">⚡</div><div class="kpi-value" id="pgProgress">--</div><div class="kpi-label">% Progress</div></div>
+                <div class="kpi-card kpi-ideas"><div class="kpi-icon">🏭</div><div class="kpi-value">8</div><div class="kpi-label">Org Teams</div></div>
+                <div class="kpi-card kpi-replicate"><div class="kpi-icon">🤖</div><div class="kpi-value">12+</div><div class="kpi-label">AI Tools Available</div></div>
+                <div class="kpi-card kpi-people"><div class="kpi-icon">👥</div><div class="kpi-value" id="pgPeople">--</div><div class="kpi-label">Unique Contributors</div></div>
+            </div>
+
+            <!-- Program Vision -->
+            <div class="chart-section">
+                <div class="chart-card">
+                    <h3>🎯 Program Vision & Goals</h3>
+                    <div style="padding: 10px 0;">
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: var(--accent-primary); margin-bottom: 8px; font-size: 15px;">Vision</h4>
+                            <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">
+                                Empower every AP associate to identify, ideate, and implement AI solutions that transform manual processes into intelligent workflows — driving efficiency, accuracy, and innovation across Accounts Payable.
+                            </p>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="color: var(--success); margin-bottom: 8px; font-size: 15px;">2026 Goals</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div style="padding: 12px; background: rgba(16,185,129,0.05); border-radius: 8px; border-left: 3px solid var(--success);">
+                                    <span style="font-size: 13px; color: var(--text-primary); font-weight: 600;">200+ AI Ideas</span>
+                                    <span style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px;">Submissions from all AP processes</span>
+                                </div>
+                                <div style="padding: 12px; background: rgba(99,102,241,0.05); border-radius: 8px; border-left: 3px solid var(--accent-primary);">
+                                    <span style="font-size: 13px; color: var(--text-primary); font-weight: 600;">30+ Live Solutions</span>
+                                    <span style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px;">AI tools deployed in production</span>
+                                </div>
+                                <div style="padding: 12px; background: rgba(245,158,11,0.05); border-radius: 8px; border-left: 3px solid var(--warning);">
+                                    <span style="font-size: 13px; color: var(--text-primary); font-weight: 600;">80% Coverage</span>
+                                    <span style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px;">All AP processes with AI adoption</span>
+                                </div>
+                                <div style="padding: 12px; background: rgba(6,182,212,0.05); border-radius: 8px; border-left: 3px solid var(--accent-tertiary);">
+                                    <span style="font-size: 13px; color: var(--text-primary); font-weight: 600;">100+ Associates</span>
+                                    <span style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px;">Trained in AI tools & ideation</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>📈 Submission Progress</h3>
+                    <div id="progressChart" style="padding: 10px 0;">
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <div style="font-size: 4rem; font-weight: 900; font-family: var(--font-mono); background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;" id="pgPctBig">--%</div>
+                            <div style="font-size: 13px; color: var(--text-muted);">of 2026 target</div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span style="font-size: 12px; color: var(--text-secondary);">Ideas Submitted</span>
+                                <span style="font-size: 12px; color: var(--accent-primary); font-family: var(--font-mono);" id="pgBarLabel">--/200</span>
+                            </div>
+                            <div style="height: 16px; background: rgba(255,255,255,0.04); border-radius: 8px; overflow: hidden;">
+                                <div id="pgBar" style="height: 100%; border-radius: 8px; background: var(--gradient-primary); transition: width 1.5s ease; width: 0%;"></div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                                <span style="font-size: 12px; color: var(--text-secondary);">Live in Production</span>
+                                <span style="font-size: 12px; color: var(--success); font-family: var(--font-mono);" id="pgProdLabel">--/30</span>
+                            </div>
+                            <div style="height: 16px; background: rgba(255,255,255,0.04); border-radius: 8px; overflow: hidden;">
+                                <div id="pgProdBar" style="height: 100%; border-radius: 8px; background: linear-gradient(90deg, #10b981, #34d399); transition: width 1.5s ease; width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Milestones -->
+    <section class="section section-dark" id="milestones">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">🗓️ Program Milestones</span>
+                <h2 class="section-title">2026 Timeline</h2>
+                <p class="section-subtitle">Key milestones and deliverables for the AI Velocity program</p>
+            </div>
+            <div class="workflow-pipeline" style="gap: 8px;">
+                <div class="workflow-step" style="max-width: 220px; border-color: rgba(16,185,129,0.3);">
+                    <div class="step-number" style="background: var(--success);">✓</div>
+                    <div class="step-icon">🚀</div>
+                    <h3>Q1 - Launch</h3>
+                    <p>Program launch, SharePoint portal, initial training sessions, first 50 ideas collected</p>
+                    <div style="margin-top: 8px; font-size: 11px; color: var(--success); font-weight: 600;">COMPLETED</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-step" style="max-width: 220px; border-color: rgba(245,158,11,0.3);">
+                    <div class="step-number" style="background: var(--warning);">2</div>
+                    <div class="step-icon">⚡</div>
+                    <h3>Q2 - Scale</h3>
+                    <p>Scale to 120+ ideas, first 15 solutions in production, cross-team replication</p>
+                    <div style="margin-top: 8px; font-size: 11px; color: var(--warning); font-weight: 600;">IN PROGRESS</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-step" style="max-width: 220px;">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">📊</div>
+                    <h3>Q3 - Optimize</h3>
+                    <p>170+ ideas, 25+ in production, ROI measurement, advanced AI tool adoption</p>
+                    <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 600;">UPCOMING</div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-step" style="max-width: 220px;">
+                    <div class="step-number">4</div>
+                    <div class="step-icon">🏆</div>
+                    <h3>Q4 - Excel</h3>
+                    <p>200+ ideas, 30+ solutions, full AP coverage, awards & recognition</p>
+                    <div style="margin-top: 8px; font-size: 11px; color: var(--text-muted); font-weight: 600;">UPCOMING</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Resources & Links -->
+    <section class="section" id="resources">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">🔗 Resources</span>
+                <h2 class="section-title">Quick Links & Tools</h2>
+                <p class="section-subtitle">Everything you need to participate in AI Velocity</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                <a href="https://amazon.sharepoint.com/sites/AI-Velocity-site" target="_blank" class="win-card" style="text-decoration: none;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">📝</div>
+                    <div class="win-title">Submit an AI Idea</div>
+                    <p class="win-challenge">Have a manual process that could be automated? Submit your idea through our SharePoint portal.</p>
+                    <div style="color: var(--accent-primary); font-size: 13px; font-weight: 600; margin-top: 12px;">Open SharePoint →</div>
+                </a>
+                <a href="https://amazon.awsapps.com/workdocs" target="_blank" class="win-card" style="text-decoration: none;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">📚</div>
+                    <div class="win-title">AI Tool Catalog</div>
+                    <p class="win-challenge">Browse available AI tools: Amazon Q, Quick Suite, Textract, Comprehend, and more.</p>
+                    <div style="color: var(--accent-primary); font-size: 13px; font-weight: 600; margin-top: 12px;">View Tools →</div>
+                </a>
+                <a href="/training.html" class="win-card" style="text-decoration: none;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">🎓</div>
+                    <div class="win-title">Training Programs</div>
+                    <p class="win-challenge">Access training materials, workshops, and hands-on labs to build your AI skills.</p>
+                    <div style="color: var(--accent-primary); font-size: 13px; font-weight: 600; margin-top: 12px;">View Training →</div>
+                </a>
+                <a href="/" class="win-card" style="text-decoration: none;">
+                    <div style="font-size: 32px; margin-bottom: 12px;">🏆</div>
+                    <div class="win-title">AI Wins Dashboard</div>
+                    <p class="win-challenge">See all completed AI solutions, leaderboard, and track progress across teams.</p>
+                    <div style="color: var(--accent-primary); font-size: 13px; font-weight: 600; margin-top: 12px;">View Dashboard →</div>
+                </a>
+                <div class="win-card">
+                    <div style="font-size: 32px; margin-bottom: 12px;">👥</div>
+                    <div class="win-title">Program Team</div>
+                    <p class="win-challenge">
+                        <strong>Program Lead:</strong> Prathima K<br>
+                        <strong>Sponsor:</strong> AP Leadership<br>
+                        <strong>Tech Team:</strong> ACES BD & SDE Team
+                    </p>
+                </div>
+                <div class="win-card">
+                    <div style="font-size: 32px; margin-bottom: 12px;">📧</div>
+                    <div class="win-title">Get Help</div>
+                    <p class="win-challenge">
+                        Need help with your AI idea? Contact the program team via Chime or email.<br>
+                        <strong>Chime:</strong> ai-velocity-support
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AI Velocity - AP | <a href="/">AI Wins Dashboard</a> | <a href="/program.html">Program</a> | <a href="/training.html">Training</a></p>
+                <span>Program Lead: Prathima K</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Fetch stats from API and populate KPIs
+        async function loadProgramData() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                const target = 200;
+                const submitted = data.total_submissions || 0;
+                const pct = Math.round((submitted / target) * 100);
+                const prod = data.live_in_production || 0;
+                
+                document.getElementById('pgSubmitted').textContent = submitted;
+                document.getElementById('pgProgress').textContent = pct + '%';
+                document.getElementById('pgPeople').textContent = data.unique_submitters || 0;
+                document.getElementById('pgPctBig').textContent = pct + '%';
+                document.getElementById('pgBarLabel').textContent = submitted + '/200';
+                document.getElementById('pgProdLabel').textContent = prod + '/30';
+                
+                setTimeout(() => {
+                    document.getElementById('pgBar').style.width = Math.min(pct, 100) + '%';
+                    document.getElementById('pgProdBar').style.width = Math.min((prod/30)*100, 100) + '%';
+                }, 200);
+            } catch(e) {
+                console.error('Failed to load program data', e);
+            }
+        }
+        
+        // Nav scroll effect
+        window.addEventListener('scroll', () => {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+        });
+        
+        // Section nav active state
+        document.querySelectorAll('.nav-link:not(.page-link)').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('.nav-link:not(.page-link)').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+        
+        loadProgramData();
+    </script>
+</body>
+</html>

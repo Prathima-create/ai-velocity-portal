@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Velocity | Training Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="bg-animation">
+        <div class="neural-network"></div>
+        <div class="gradient-orbs"><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div></div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="navbar scrolled" id="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <span class="logo-icon">🚀</span>
+                <span class="logo-text">AI<span class="accent">Velocity</span></span>
+                <span class="logo-badge">AP</span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="/" class="nav-link page-link">🏆 AI Wins</a></li>
+                <li><a href="/program.html" class="nav-link page-link">📊 Program</a></li>
+                <li><a href="/training.html" class="nav-link page-link active-page">🎓 Training</a></li>
+                <li class="nav-divider"></li>
+                <li><a href="#courses" class="nav-link active">Courses</a></li>
+                <li><a href="#workshops" class="nav-link">Workshops</a></li>
+                <li><a href="#tools" class="nav-link">AI Tools</a></li>
+                <li><a href="#certification" class="nav-link">Certification</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="https://amazon.sharepoint.com/:l:/s/AI-Velocity-site" target="_blank" class="btn-primary">✨ Submit Idea</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Training Hero -->
+    <section class="dashboard-hero" id="courses">
+        <div class="container">
+            <div class="dashboard-header">
+                <div>
+                    <h1 class="dashboard-title">Training <span class="gradient-text">Dashboard</span></h1>
+                    <p class="dashboard-subtitle">Build your AI skills — courses, workshops, and hands-on labs for AP associates</p>
+                </div>
+                <div class="data-source-badge"><span class="pulse-dot"></span><span>Training Active</span></div>
+            </div>
+
+            <!-- Training KPIs -->
+            <div class="kpi-grid kpi-grid-6">
+                <div class="kpi-card kpi-total"><div class="kpi-icon">📚</div><div class="kpi-value">6</div><div class="kpi-label">Training Tracks</div></div>
+                <div class="kpi-card kpi-prod"><div class="kpi-icon">🎓</div><div class="kpi-value">15+</div><div class="kpi-label">Courses Available</div></div>
+                <div class="kpi-card kpi-uat"><div class="kpi-icon">🔬</div><div class="kpi-value">8</div><div class="kpi-label">Hands-on Labs</div></div>
+                <div class="kpi-card kpi-ideas"><div class="kpi-icon">👨‍🏫</div><div class="kpi-value">4</div><div class="kpi-label">Live Workshops/Mo</div></div>
+                <div class="kpi-card kpi-replicate"><div class="kpi-icon">🏅</div><div class="kpi-value">3</div><div class="kpi-label">Certification Paths</div></div>
+                <div class="kpi-card kpi-people"><div class="kpi-icon">👥</div><div class="kpi-value">60+</div><div class="kpi-label">Associates Trained</div></div>
+            </div>
+
+            <!-- Training Tracks -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px;">
+                <!-- Track 1: Beginner -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(16,185,129,0.15); color: var(--success);">Beginner</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~4 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">🌱</div>
+                    <div class="win-title">AI Fundamentals for AP</div>
+                    <p class="win-challenge">Introduction to AI/ML concepts, how AI applies to Accounts Payable, identifying automation opportunities in your daily work.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">AI basics, AP use cases, ideation framework, how to submit ideas</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Party Rock</span>
+                        <span class="tool-tag">Amazon Q</span>
+                        <span class="tool-tag">Quick Suite</span>
+                    </div>
+                </div>
+
+                <!-- Track 2: Prompt Engineering -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(99,102,241,0.15); color: var(--accent-primary);">Intermediate</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~6 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">💬</div>
+                    <div class="win-title">Prompt Engineering Masterclass</div>
+                    <p class="win-challenge">Learn to write effective prompts for Amazon Q, ChatGPT, and other LLMs. Build chat agents, create SOPs, and automate knowledge retrieval.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">Prompt patterns, chain-of-thought, few-shot learning, building Q Business apps</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Amazon Q Business</span>
+                        <span class="tool-tag">Quick Suite Chat</span>
+                        <span class="tool-tag">Party Rock</span>
+                    </div>
+                </div>
+
+                <!-- Track 3: Document AI -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(99,102,241,0.15); color: var(--accent-primary);">Intermediate</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~8 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">📄</div>
+                    <div class="win-title">Document Intelligence & OCR</div>
+                    <p class="win-challenge">Extract data from invoices, BOLs, credit notes using Amazon Textract and Orcha AI. Build automated document processing pipelines.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">Textract APIs, form extraction, table parsing, Orcha AI workflows</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Amazon Textract</span>
+                        <span class="tool-tag">Orcha AI</span>
+                        <span class="tool-tag">Python</span>
+                    </div>
+                </div>
+
+                <!-- Track 4: Automation -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(245,158,11,0.15); color: var(--warning);">Advanced</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~10 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">⚡</div>
+                    <div class="win-title">Process Automation with AI</div>
+                    <p class="win-challenge">Build end-to-end automated workflows: email parsing, data validation, reconciliation, report generation using Quick Suite Flow and Python.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">Quick Suite Flows, Python automation, API integration, scheduling</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Quick Suite Flow</span>
+                        <span class="tool-tag">Python</span>
+                        <span class="tool-tag">AWS Lambda</span>
+                    </div>
+                </div>
+
+                <!-- Track 5: Analytics -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(245,158,11,0.15); color: var(--warning);">Advanced</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~8 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">📊</div>
+                    <div class="win-title">AI-Powered Analytics & Dashboards</div>
+                    <p class="win-challenge">Build intelligent dashboards with QuickSight, create data pipelines, and use AI for anomaly detection and predictive analytics.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">QuickSight Q, data modeling, predictive insights, automated reporting</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Amazon QuickSight</span>
+                        <span class="tool-tag">Python Pandas</span>
+                        <span class="tool-tag">SQL</span>
+                    </div>
+                </div>
+
+                <!-- Track 6: Builder -->
+                <div class="win-card">
+                    <div class="win-header">
+                        <span class="win-badge" style="background: rgba(239,68,68,0.15); color: var(--danger);">Expert</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">~12 hours</span>
+                    </div>
+                    <div style="font-size: 28px; margin-bottom: 8px;">🛠️</div>
+                    <div class="win-title">Full-Stack AI Builder</div>
+                    <p class="win-challenge">Build complete AI applications: custom agents, RAG pipelines, ML models, and deploy to production using AWS services.</p>
+                    <div class="win-impact">
+                        <span class="impact-label">What You'll Learn</span>
+                        <span class="impact-text">SageMaker, Bedrock, RAG, custom agents, deployment, CI/CD</span>
+                    </div>
+                    <div class="win-tools">
+                        <span class="tool-tag">Amazon Bedrock</span>
+                        <span class="tool-tag">SageMaker</span>
+                        <span class="tool-tag">AWS CDK</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Workshops -->
+    <section class="section section-dark" id="workshops">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">👨‍🏫 Live Workshops</span>
+                <h2 class="section-title">Upcoming Sessions</h2>
+                <p class="section-subtitle">Join our live workshops and hands-on labs every week</p>
+            </div>
+            <div class="leaderboard-table-wrap">
+                <table class="leader-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Workshop</th>
+                            <th>Instructor</th>
+                            <th>Level</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="leader-row">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">May 5</td>
+                            <td class="leader-name">Prompt Engineering for AP - Hands-on Lab</td>
+                            <td style="color: var(--text-secondary);">Prathima K</td>
+                            <td><span class="status-pill status-approved">Beginner</span></td>
+                            <td style="color: var(--text-muted);">2 hrs</td>
+                            <td><span class="status-pill status-in-review">Upcoming</span></td>
+                        </tr>
+                        <tr class="leader-row">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">May 12</td>
+                            <td class="leader-name">Amazon Q Business - Build Your First App</td>
+                            <td style="color: var(--text-secondary);">Tech Team</td>
+                            <td><span class="status-pill status-approved">Intermediate</span></td>
+                            <td style="color: var(--text-muted);">3 hrs</td>
+                            <td><span class="status-pill status-in-review">Upcoming</span></td>
+                        </tr>
+                        <tr class="leader-row">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">May 19</td>
+                            <td class="leader-name">Document Extraction with Textract</td>
+                            <td style="color: var(--text-secondary);">ACES BD Team</td>
+                            <td><span class="status-pill status-pending">Advanced</span></td>
+                            <td style="color: var(--text-muted);">2 hrs</td>
+                            <td><span class="status-pill status-in-review">Upcoming</span></td>
+                        </tr>
+                        <tr class="leader-row">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">May 26</td>
+                            <td class="leader-name">Quick Suite Flow - Automation Workshop</td>
+                            <td style="color: var(--text-secondary);">Prathima K</td>
+                            <td><span class="status-pill status-approved">Beginner</span></td>
+                            <td style="color: var(--text-muted);">2 hrs</td>
+                            <td><span class="status-pill status-in-review">Upcoming</span></td>
+                        </tr>
+                        <tr class="leader-row" style="opacity: 0.6;">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">Apr 28</td>
+                            <td class="leader-name">AI Ideation Workshop - How to Identify AI Opportunities</td>
+                            <td style="color: var(--text-secondary);">Prathima K</td>
+                            <td><span class="status-pill status-approved">Beginner</span></td>
+                            <td style="color: var(--text-muted);">1.5 hrs</td>
+                            <td><span class="status-pill status-completed">Completed</span></td>
+                        </tr>
+                        <tr class="leader-row" style="opacity: 0.6;">
+                            <td style="font-family: var(--font-mono); font-size: 12px;">Apr 14</td>
+                            <td class="leader-name">Party Rock & Amazon Q - Getting Started</td>
+                            <td style="color: var(--text-secondary);">Tech Team</td>
+                            <td><span class="status-pill status-approved">Beginner</span></td>
+                            <td style="color: var(--text-muted);">2 hrs</td>
+                            <td><span class="status-pill status-completed">Completed</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI Tools Catalog -->
+    <section class="section" id="tools">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">🤖 AI Tool Catalog</span>
+                <h2 class="section-title">Available AI Tools</h2>
+                <p class="section-subtitle">Tools available for AP associates to build AI solutions</p>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">🔮</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Amazon Q Business</div>
+                            <div style="font-size: 11px; color: var(--success);">Available Now</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">Enterprise AI assistant for knowledge retrieval, Q&A over documents, SOPs, and internal data.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">Chat</span><span class="tool-tag">Knowledge</span><span class="tool-tag">SOP</span></div>
+                </div>
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">⚡</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Amazon Quick Suite</div>
+                            <div style="font-size: 11px; color: var(--success);">Available Now</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">Chat agents, automated flows, and workflow automation for AP processes.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">Chat Agent</span><span class="tool-tag">Flow</span><span class="tool-tag">Automation</span></div>
+                </div>
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">📄</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Amazon Textract</div>
+                            <div style="font-size: 11px; color: var(--success);">Available Now</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">Extract text, tables, and forms from scanned documents, invoices, and PDFs automatically.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">OCR</span><span class="tool-tag">Invoice</span><span class="tool-tag">Table</span></div>
+                </div>
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">🧠</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Amazon Comprehend</div>
+                            <div style="font-size: 11px; color: var(--success);">Available Now</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">NLP service for sentiment analysis, entity extraction, text classification, and language detection.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">Sentiment</span><span class="tool-tag">NLP</span><span class="tool-tag">Classification</span></div>
+                </div>
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">🎉</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Party Rock</div>
+                            <div style="font-size: 11px; color: var(--success);">Available Now</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">No-code AI app builder — create prototypes and demos in minutes without any coding.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">No-Code</span><span class="tool-tag">Prototype</span><span class="tool-tag">Demo</span></div>
+                </div>
+                <div class="win-card" style="padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 28px;">🐍</span>
+                        <div>
+                            <div style="font-weight: 700; font-size: 15px;">Python + AI Libraries</div>
+                            <div style="font-size: 11px; color: var(--accent-tertiary);">For Tech Teams</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">Custom solutions using Python with pandas, boto3, OpenAI APIs, and AWS SDK for advanced use cases.</p>
+                    <div style="margin-top: 10px;"><span class="tool-tag">Custom</span><span class="tool-tag">API</span><span class="tool-tag">Advanced</span></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Certification -->
+    <section class="section section-dark" id="certification">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">🏅 Certification</span>
+                <h2 class="section-title">AI Velocity Certification</h2>
+                <p class="section-subtitle">Earn recognition for your AI skills</p>
+            </div>
+            <div class="workflow-pipeline" style="gap: 16px;">
+                <div class="workflow-step" style="max-width: 260px; border-color: rgba(16,185,129,0.3);">
+                    <div class="step-number" style="background: var(--success);">🌱</div>
+                    <div class="step-icon" style="font-size: 40px;">🥉</div>
+                    <h3>AI Explorer</h3>
+                    <p style="margin-bottom: 12px;">Complete AI Fundamentals course + submit 1 AI idea</p>
+                    <div style="padding: 8px; background: rgba(16,185,129,0.05); border-radius: 6px; font-size: 11px; color: var(--success);">
+                        ✓ Certificate + Chime Badge
+                    </div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-step" style="max-width: 260px; border-color: rgba(99,102,241,0.3);">
+                    <div class="step-number" style="background: var(--accent-primary);">⚡</div>
+                    <div class="step-icon" style="font-size: 40px;">🥈</div>
+                    <h3>AI Builder</h3>
+                    <p style="margin-bottom: 12px;">Complete 2 intermediate courses + build 1 working prototype</p>
+                    <div style="padding: 8px; background: rgba(99,102,241,0.05); border-radius: 6px; font-size: 11px; color: var(--accent-primary);">
+                        ✓ Certificate + Recognition + Leaderboard
+                    </div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-step" style="max-width: 260px; border-color: rgba(245,158,11,0.3);">
+                    <div class="step-number" style="background: var(--warning);">🏆</div>
+                    <div class="step-icon" style="font-size: 40px;">🥇</div>
+                    <h3>AI Champion</h3>
+                    <p style="margin-bottom: 12px;">Deploy 1 AI solution to production + mentor 2 associates</p>
+                    <div style="padding: 8px; background: rgba(245,158,11,0.05); border-radius: 6px; font-size: 11px; color: var(--warning);">
+                        ✓ Certificate + Award + Leadership Recognition
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-bottom">
+                <p>&copy; 2026 AI Velocity - AP | <a href="/">AI Wins Dashboard</a> | <a href="/program.html">Program</a> | <a href="/training.html">Training</a></p>
+                <span>Program Lead: Prathima K</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Nav scroll effect
+        window.addEventListener('scroll', () => {
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+        });
+        // Section nav active state
+        document.querySelectorAll('.nav-link:not(.page-link)').forEach(link => {
+            link.addEventListener('click', function(e) {
+                document.querySelectorAll('.nav-link:not(.page-link)').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>

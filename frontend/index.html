@@ -32,7 +32,8 @@
                 <li><a href="#ideas" class="nav-link">Ideas</a></li>
             </ul>
             <div class="nav-actions">
-                <label class="btn-sync" title="Upload fresh SharePoint CSV to update data">📤 Upload CSV
+                <button class="btn-sync" onclick="syncFromSharePoint()" title="Sync latest data from SharePoint (auto)">📡 Sync SP</button>
+                <label class="btn-refresh" title="Upload CSV manually" style="cursor:pointer;">📤 Upload
                     <input type="file" accept=".csv" onchange="uploadCSV(this)" style="display:none;" />
                 </label>
                 <button class="btn-refresh" onclick="refreshData()" title="Refresh data from CSV">🔄 Refresh</button>

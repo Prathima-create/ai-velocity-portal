@@ -1,0 +1,52 @@
+name: Sync SharePoint Data
+
+on:
+  # Run every 2 hours automatically
+  schedule:
+    - cron: '0 */2 * * *'
+  
+  # Also allow manual trigger from GitHub UI or dashboard
+  workflow_dispatch:
+  
+  # Also trigger via API (so our dashboard Refresh button can trigger it)
+  repository_dispatch:
+    types: [sync-sharepoint]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install requests
+      
+      - name: Sync SharePoint data
+        env:
+          SHAREPOINT_SITE_URL: ${{ secrets.SHAREPOINT_SITE_URL }}
+          SHAREPOINT_ACCESS_TOKEN: ${{ secrets.SHAREPOINT_ACCESS_TOKEN }}
+          SHAREPOINT_LIST_NAME: ${{ secrets.SHAREPOINT_LIST_NAME }}
+        run: python scripts/sync_cloud.py
+      
+      - name: Check for changes
+        id: check
+        run: |
+          git diff --quiet data/submissions.csv || echo "changed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push updated CSV
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add data/submissions.csv
+          git commit -m "Auto-sync: Update SharePoint data $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push

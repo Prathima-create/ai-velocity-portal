@@ -547,19 +547,44 @@ async def get_processes():
 
 @app.post("/api/sync")
 async def trigger_sync():
-    """Trigger SharePoint CSV sync via Selenium (runs in background)"""
-    import subprocess
-    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "sync_sharepoint.py")
-    if not os.path.exists(script_path):
-        return {"status": "error", "message": "Sync script not found"}
+    """Trigger SharePoint data sync via GitHub Actions"""
+    import requests as req
+    
+    github_token = os.environ.get("GITHUB_PAT", "")
+    repo = os.environ.get("GITHUB_REPO", "Prathima-create/ai-velocity-portal")
+    
+    if not github_token:
+        # Fallback: try local Selenium sync
+        import subprocess
+        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "sync_sharepoint.py")
+        if not os.path.exists(script_path):
+            return {"status": "error", "message": "No GITHUB_PAT configured and no local sync script. Set GITHUB_PAT env var on Render to enable cloud sync."}
+        try:
+            kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+            if os.name == 'nt':
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            proc = subprocess.Popen([sys.executable, script_path], **kwargs)
+            return {"status": "started", "message": "Local sync started. Dashboard will refresh in 60s.", "pid": proc.pid}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    # Trigger GitHub Actions workflow via repository_dispatch
     try:
-        kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
-        if os.name == 'nt':
-            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        proc = subprocess.Popen([sys.executable, script_path], **kwargs)
-        return {"status": "started", "message": "SharePoint sync started in background. Edge browser will open to download CSV.", "pid": proc.pid}
+        resp = req.post(
+            f"https://api.github.com/repos/{repo}/dispatches",
+            json={"event_type": "sync-sharepoint"},
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json"
+            },
+            timeout=10
+        )
+        if resp.status_code == 204:
+            return {"status": "started", "message": "🚀 SharePoint sync triggered! Data will update in ~2 minutes. Click Refresh after that."}
+        else:
+            return {"status": "error", "message": f"GitHub API returned {resp.status_code}: {resp.text[:200]}"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": f"Could not trigger sync: {str(e)}"}
 
 
 @app.get("/api/sync-status")

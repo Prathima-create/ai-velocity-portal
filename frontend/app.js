@@ -71,8 +71,20 @@ async function uploadCSV(input) {
 }
 
 async function syncFromSharePoint() {
-    // Legacy: kept for backward compatibility
-    showToast('📤 Use the Upload CSV button to update data');
+    showToast('📡 Triggering SharePoint sync...');
+    try {
+        const resp = await fetch(`${API}/sync`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.status === 'started') {
+            showToast(data.message);
+            // Auto-refresh after 2 minutes (time for GitHub Action to complete)
+            setTimeout(() => { showToast('🔄 Auto-refreshing data...'); loadDashboard(); }, 120000);
+        } else {
+            showToast('⚠️ ' + (data.message || 'Sync failed'));
+        }
+    } catch (err) {
+        showToast('⚠️ Could not trigger sync: ' + err.message);
+    }
 }
 
 // ─── KPIs ──────────────────────────────────────────────────────────────────────

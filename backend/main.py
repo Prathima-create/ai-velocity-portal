@@ -583,7 +583,16 @@ frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fronte
 async def serve_frontend():
     return FileResponse(os.path.join(frontend_path, "index.html"))
 
+@app.get("/program.html")
+async def serve_program():
+    return FileResponse(os.path.join(frontend_path, "program.html"))
+
+@app.get("/training.html")
+async def serve_training():
+    return FileResponse(os.path.join(frontend_path, "training.html"))
+
 if os.path.exists(frontend_path):
+    app.mount("/static", StaticFiles(directory=frontend_path), name="static")
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 if __name__ == "__main__":

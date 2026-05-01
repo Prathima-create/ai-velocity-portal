@@ -554,19 +554,19 @@ async def trigger_sync():
     repo = os.environ.get("GITHUB_REPO", "Prathima-create/ai-velocity-portal")
     
     if not github_token:
-        # Fallback: try local Selenium sync
-        import subprocess
-        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "sync_sharepoint.py")
-        if not os.path.exists(script_path):
-            return {"status": "error", "message": "No GITHUB_PAT configured and no local sync script. Set GITHUB_PAT env var on Render to enable cloud sync."}
-        try:
-            kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
-            if os.name == 'nt':
-                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-            proc = subprocess.Popen([sys.executable, script_path], **kwargs)
-            return {"status": "started", "message": "Local sync started. Dashboard will refresh in 60s.", "pid": proc.pid}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+        # Fallback: try local Selenium sync (only works on Windows with Edge browser)
+        if os.name == 'nt':
+            import subprocess
+            script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "sync_sharepoint.py")
+            if os.path.exists(script_path):
+                try:
+                    kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE, "creationflags": subprocess.CREATE_NO_WINDOW}
+                    proc = subprocess.Popen([sys.executable, script_path], **kwargs)
+                    return {"status": "started", "message": "🚀 Local sync started! Edge browser will open. Dashboard refreshes in 60s.", "pid": proc.pid}
+                except Exception as e:
+                    return {"status": "error", "message": str(e)}
+        # Cloud server without GITHUB_PAT
+        return {"status": "started", "message": "📡 Data auto-syncs every hour from your laptop. Click 🔄 Refresh to see the latest data. Or use 📤 Upload to update manually."}
     
     # Trigger GitHub Actions workflow via repository_dispatch
     try:

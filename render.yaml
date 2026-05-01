@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ai-velocity-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "3000"

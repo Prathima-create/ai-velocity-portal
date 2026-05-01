@@ -1,0 +1,592 @@
+"""
+AI Velocity Portal - Backend API
+Serves AI Wins Dashboard data from SharePoint CSV export
+"""
+
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+import csv
+import os
+import sys
+from datetime import datetime
+from collections import Counter
+
+app = FastAPI(
+    title="AI Velocity Portal API",
+    description="Backend API for AI Velocity - Accounts Payable",
+    version="2.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── Leader / Org Mapping ─────────────────────────────────────────────────────
+# Process-name based leader mapping (default fallback)
+LEADER_MAPPING = {
+    "Corp Invoice Processing": {"leader": "Hari", "poc": "Raj"},
+    "Critical Vendors - Invoice Processing": {"leader": "Hari", "poc": "Raj"},
+    "Corp AP - FinCoM -SVOT": {"leader": "Hari", "poc": "Raj"},
+    "Corp AP - FinCoM- Inbound": {"leader": "Hari", "poc": "Raj"},
+    "FinCoM_Expense": {"leader": "Hari", "poc": "Raj"},
+    "Expense": {"leader": "Hari", "poc": "Raj"},
+    "Corp Cards": {"leader": "Hari", "poc": "Raj"},
+    "TTT": {"leader": "Sanjeev", "poc": "Praveen B"},
+    "Accts Payable Retail- VAR": {"leader": "Ritesh", "poc": "Vomsee"},
+    "Accts Payable - VAR": {"leader": "Ritesh", "poc": "Vomsee"},
+    "Accts Payable NonInventory-VAR": {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "FinOps Projects": {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Invoice on Hold": {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "FinOps - AR CDO - VAR": {"leader": "Leela", "poc": "Renuka"},
+}
+
+# Manager-name → L7 Leader mapping (takes PRIORITY over process-based mapping)
+# This ensures correct org attribution regardless of which process the person selects
+MANAGER_TO_LEADER = {
+    # L7: Hari (hathamma) — Corp AP, Corp Cards, Expense, FinCoM
+    "THAMMALA, HARI":                       {"leader": "Hari", "poc": "Raj"},
+    "V, UPENDRA":                           {"leader": "Hari", "poc": "Raj"},
+    "Medakkar, Mayur":                      {"leader": "Hari", "poc": "Raj"},
+    "Ch, Raghunadh":                        {"leader": "Hari", "poc": "Raj"},
+    "SINGH, ROHIT":                         {"leader": "Hari", "poc": "Raj"},
+    "Dash, Bighnaraja":                     {"leader": "Hari", "poc": "Raj"},
+    "Manchili, Sree Somasekhar":            {"leader": "Hari", "poc": "Raj"},
+    "Ali, Md Mujahed":                      {"leader": "Hari", "poc": "Raj"},
+    "Janardhanan, Madhusudanan(MJ)":        {"leader": "Hari", "poc": "Raj"},
+    "Srikanth, Kanumarlapudi":              {"leader": "Hari", "poc": "Raj"},
+    "Mishra, Renuka":                       {"leader": "Hari", "poc": "Raj"},
+    # L7: Kevin (fekevn) — POR Online
+    "Fernandes, Kevin":                     {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Gaddam, Shirish":                      {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Paravastu, Samudrika":                 {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Bob, Terence":                         {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Unnisa, Habeeb":                       {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Khureja, Swati":                       {"leader": "Kevin", "poc": "Arunima & Komal"},
+    "Kunapareddy, Harika":                  {"leader": "Kevin", "poc": "Arunima & Komal"},
+    # L7: Parul (guppar) — Retail Online, Transfinance, Digital, Physical Stores
+    "Dixit, Girish":                        {"leader": "Parul", "poc": "Girish"},
+    "Madadi, Keshava Reddy":                {"leader": "Parul", "poc": "Keshava"},
+    "Vijayakumar, Priyadarsini":            {"leader": "Parul", "poc": "Priyadarsini"},
+    # L7: Ritchie (rajivkmr) — Payments
+    "., Ritchie":                           {"leader": "Ritchie", "poc": "Paavai"},
+    "Thilak Kumar, Paavai":                 {"leader": "Ritchie", "poc": "Paavai"},
+    "Kumar B, Harish":                      {"leader": "Ritchie", "poc": "Harish"},
+    "Raghavendran, Hareesh":                {"leader": "Ritchie", "poc": "Hareesh"},
+    # L7: Ritesh (rjoshi) — Retail SVOT/Holds
+    "Joshi, Ritesh":                        {"leader": "Ritesh", "poc": "Vomsee"},
+    "Yerubandi, Vomsee Gowtham":            {"leader": "Ritesh", "poc": "Vomsee"},
+    # L7: Leela — Retail FinCom Inbound
+    "Gera, Leela":                          {"leader": "Leela", "poc": "Leela"},
+    # L7: Sanjeev (skmittal) — Training/QC/Support
+    "Mittal, Sanjeev":                      {"leader": "Sanjeev", "poc": "Sanjeev"},
+    "Begari, Praveen Kumar":                {"leader": "Sanjeev", "poc": "Praveen B"},
+    # Program Lead (under Hari's org)
+    "K, Prathima":                          {"leader": "Hari", "poc": "Prathima"},
+}
+
+# ─── SDE / Tech Team Contact Mapping ─────────────────────────────────────────
+SDE_CONTACTS = {
+    "Corp Invoice Processing": {"alias": "kartheek", "name": "Yarram Kartheek Reddy", "team": "ACES BD"},
+    "Critical Vendors - Invoice Processing": {"alias": "mjanarad", "name": "Madhusudanan MJ", "team": "ACES BD"},
+    "Corp AP - FinCoM -SVOT": {"alias": "raghunadh", "name": "Raghunadh Ch", "team": "ACES BD"},
+    "Corp AP - FinCoM- Inbound": {"alias": "raghunadh", "name": "Raghunadh Ch", "team": "ACES BD"},
+    "FinCoM_Expense": {"alias": "somasekh", "name": "Sree Somasekhar Manchili", "team": "ACES BD"},
+    "Expense": {"alias": "somasekh", "name": "Sree Somasekhar Manchili", "team": "ACES BD"},
+    "Corp Cards": {"alias": "bighnar", "name": "Bighnaraja Dash", "team": "ACES BD"},
+    "TTT": {"alias": "kanumark", "name": "Kanumarlapudi Srikanth", "team": "ACES BD"},
+    "Accts Payable Retail- VAR": {"alias": "bighnar", "name": "Bighnaraja Dash", "team": "ACES BD"},
+    "Accts Payable - VAR": {"alias": "bighnar", "name": "Bighnaraja Dash", "team": "ACES BD"},
+    "Accts Payable NonInventory-VAR": {"alias": "bighnar", "name": "Bighnaraja Dash", "team": "ACES BD"},
+    "FinOps Projects": {"alias": "adarshsr", "name": "Adarsh Srivastav", "team": "SDE"},
+    "Invoice on Hold": {"alias": "habeebu", "name": "Habeeb Unnisa", "team": "ACES BD"},
+    "FinOps - AR CDO - VAR": {"alias": "bighnar", "name": "Bighnaraja Dash", "team": "ACES BD"},
+}
+
+# ─── AI Tool Suggestions based on problem type ───────────────────────────────
+TOOL_SUGGESTIONS = {
+    "document": ["Amazon Textract", "Amazon Comprehend", "Orcha AI", "Party Rock"],
+    "extraction": ["Amazon Textract", "Party Rock", "Python + PDF Libraries", "Orcha AI"],
+    "chatbot": ["Amazon Q Business", "Amazon Quick Suite", "Amazon Lex"],
+    "knowledge": ["Amazon Q Business", "Amazon Quick Suite Chat Agent", "RAG Framework"],
+    "automation": ["Amazon Quick Suite Flow", "Python Automation", "AWS Step Functions"],
+    "analytics": ["Amazon QuickSight", "Amazon Q Business", "Python + Pandas"],
+    "sentiment": ["Amazon Comprehend", "Custom LLM Agent", "Amazon Quick Suite"],
+    "translation": ["Amazon Translate", "Amazon Comprehend", "Custom AI Agent"],
+    "audit": ["Amazon Quick Suite", "Python Automation", "Custom AI Agent"],
+    "email": ["Amazon Quick Suite Flow", "Python + Outlook Integration", "AWS SES"],
+    "ocr": ["Amazon Textract", "Orcha AI", "Python + Tesseract"],
+    "classification": ["Amazon Comprehend", "Custom ML Model", "Amazon SageMaker"],
+    "dashboard": ["Amazon QuickSight", "GDA Dashboard", "Custom Web Dashboard"],
+    "sop": ["Amazon Q Business", "Quick Suite Chat Agent", "RAG + Knowledge Base"],
+    "invoice": ["Amazon Textract", "Orcha AI", "Python + PDF Extraction", "CREATURE Template Automation"],
+    "reconciliation": ["Python Automation", "Amazon QuickSight", "Data Central + AI"],
+    "validation": ["Amazon Textract + Rules Engine", "Python Automation", "Custom AI Agent"],
+    "payment": ["Python Automation", "Amazon Quick Suite Flow", "RPA Integration"],
+}
+
+# ─── CSV Parsing ──────────────────────────────────────────────────────────────
+def load_submissions():
+    """Load and parse the SharePoint CSV export"""
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "submissions.csv")
+    
+    if not os.path.exists(csv_path):
+        return []
+    
+    submissions = []
+    with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
+        reader = csv.DictReader(f)
+        for idx, row in enumerate(reader):
+            submission_type = row.get("What would you like to do", "").strip()
+            
+            # Determine category
+            if "Completed AI Win" in submission_type:
+                category = "ai_win"
+            elif "Replicate" in submission_type:
+                category = "replicate"
+            else:
+                category = "new_idea"
+            
+            # Parse expected impact
+            impact_raw = row.get("Expected Impact if Implemented?", "") or row.get("Rating (0-5)", "")
+            
+            # Parse approval status
+            approval_status_raw = row.get("Approval Status", "") or row.get("Approval status", "")
+            manager_approval = row.get("Manager approval", "")
+            l6_approval = row.get("L6/L7 approval", "")
+            tech_approval = row.get("Tech team approval", "")
+            
+            # Determine overall status
+            if approval_status_raw == "1":
+                status = "Approved"
+            elif approval_status_raw == "2":
+                status = "In Review"
+            elif approval_status_raw == "3":
+                status = "Pending"
+            elif approval_status_raw == "0":
+                status = "New"
+            else:
+                status = "Pending"
+            
+            # For AI Wins, status is always "Completed"
+            if category == "ai_win":
+                status = "Completed"
+            
+            # Parse execution plan
+            execution_plan = row.get("How do you plan to execute this idea?", "").strip()
+            
+            # Build submission object
+            name = row.get("Name", "").strip() or row.get("Your name", "").strip()
+            process = row.get("Process", "").strip() or row.get("Process you are in", "").strip() or row.get("Select your process", "").strip()
+            sub_process = row.get("Sub Process", "").strip() or row.get("Sub Process you are in", "").strip() or row.get("Select your Sub process", "").strip()
+            
+            # For AI wins
+            project_name = row.get("Project Name", "").strip()
+            project_owner = row.get("Project Owner/Lead", "").strip()
+            project_team = row.get("Project Team", "").strip()
+            tech_poc = row.get("Tech team POC", "").strip()
+            challenge = row.get("Challenge addressed ", "").strip()
+            ai_solution_win = row.get("AI solution ", "").strip()
+            impact_win = row.get("Impact", "").strip()
+            replicable = row.get("Can this solution be replicated by others?", "").strip()
+            
+            # For ideas
+            problem_statement = row.get("Problem Statement", "").strip()
+            current_effort = row.get("Current Manual Effort", "").strip()
+            proposed_solution = row.get("Proposed AI Solution", "").strip()
+            estimated_volume = row.get("Estimated Volume", "").strip()
+            impact_types = row.get("Expected Impact if Implemented?", "").strip() or row.get("Other Impact", "").strip()
+            data_available = row.get("Data available", "").strip()
+            support_required = row.get("Support Required (if any)", "").strip()
+            target_timeline = row.get("Target Timeline", "").strip()
+            can_replicate = row.get("Can this be replicated across teams?", "").strip()
+            
+            # For replicate requests
+            which_win = row.get("Which AI Win are you interested in replicating?", "").strip()
+            current_process_desc = row.get("Briefly describe your current process", "").strip() or row.get("Define your Current Process", "").strip()
+            
+            # Implementation stage (new column)
+            impl_stage_raw = row.get("If your idea is being implemented by you , what stage it is in?", "").strip()
+            
+            # Dates
+            created = row.get("Created", "").strip()
+            modified = row.get("Modified", "").strip()
+            created_by = row.get("Created By", "").strip()
+            modified_by = row.get("Modified By", "").strip()
+            manager = row.get("Your Manager", "").strip()
+            team = row.get("Your Team ", "").strip()
+            
+            # Suggest tools based on problem keywords
+            suggested_tools = suggest_tools(
+                problem_statement + " " + proposed_solution + " " + challenge + " " + ai_solution_win
+            )
+            
+            # Get SDE contact
+            sde_contact = get_sde_contact(process)
+            
+            # Normalize implementation stage
+            if "not required" in impl_stage_raw.lower() or "completed win" in impl_stage_raw.lower() or "ready for production" in impl_stage_raw.lower():
+                impl_stage = "Completed (Production)"
+            elif "awaiting approval" in impl_stage_raw.lower():
+                impl_stage = "Completed (Awaiting Approvals)"
+            elif "uat" in impl_stage_raw.lower():
+                impl_stage = "In Progress (UAT Stage)"
+            elif "development" in impl_stage_raw.lower():
+                impl_stage = "In Progress (Development Stage)"
+            elif impl_stage_raw:
+                impl_stage = impl_stage_raw
+            else:
+                impl_stage = ""
+            
+            # Get leader info — manager-based lookup takes PRIORITY
+            leader_info = MANAGER_TO_LEADER.get(manager) or get_leader(process)
+            
+            submission = {
+                "id": idx + 1,
+                "category": category,
+                "submission_type": submission_type,
+                "name": name,
+                "created_by": created_by,
+                "process": process,
+                "sub_process": sub_process,
+                "project_name": project_name,
+                "project_owner": project_owner,
+                "project_team": project_team,
+                "tech_poc": tech_poc,
+                "challenge": challenge,
+                "ai_solution": ai_solution_win or proposed_solution,
+                "impact": impact_win or impact_types,
+                "replicable": replicable or can_replicate,
+                "problem_statement": problem_statement,
+                "current_effort": current_effort,
+                "proposed_solution": proposed_solution,
+                "estimated_volume": estimated_volume,
+                "execution_plan": execution_plan,
+                "data_available": data_available,
+                "support_required": support_required,
+                "target_timeline": target_timeline,
+                "which_win_to_replicate": which_win,
+                "current_process_desc": current_process_desc,
+                "status": status,
+                "manager_approval": manager_approval,
+                "l6_approval": l6_approval,
+                "tech_approval": tech_approval,
+                "manager": manager,
+                "team": team,
+                "created": created,
+                "modified": modified,
+                "modified_by": modified_by,
+                "suggested_tools": suggested_tools,
+                "sde_contact": sde_contact,
+                "leader": leader_info.get("leader", "Unknown"),
+                "leader_poc": leader_info.get("poc", "TBD"),
+                "implementation_stage": impl_stage,
+            }
+            
+            submissions.append(submission)
+    
+    return submissions
+
+
+def suggest_tools(text: str) -> List[str]:
+    """Suggest AI tools based on problem/solution keywords"""
+    text_lower = text.lower()
+    tools = set()
+    
+    keyword_map = {
+        "document": ["pdf", "document", "extract", "bol", "credit note", "invoice copy"],
+        "extraction": ["extract", "parse", "read", "ocr", "scan"],
+        "chatbot": ["chatbot", "chat bot", "chat agent", "conversational"],
+        "knowledge": ["sop", "knowledge", "wiki", "knowledge base", "information"],
+        "automation": ["automate", "automation", "workflow", "flow", "trigger", "schedule"],
+        "analytics": ["analytics", "dashboard", "report", "metrics", "kpi", "trend"],
+        "sentiment": ["sentiment", "nrr", "negative response", "frustration"],
+        "translation": ["translat", "language", "german", "local language"],
+        "audit": ["audit", "quality", "qc", "validation check", "compliance check"],
+        "email": ["email", "notification", "reminder", "follow-up", "correspondence"],
+        "ocr": ["ocr", "scan", "image", "handwritten"],
+        "classification": ["classif", "categoriz", "routing", "cti"],
+        "dashboard": ["dashboard", "visualization", "quicksight", "report"],
+        "sop": ["sop", "standard operating", "procedure", "blurb"],
+        "invoice": ["invoice", "payment", "billing", "creature"],
+        "reconciliation": ["reconcil", "matching", "comparison", "vlookup"],
+        "validation": ["validat", "verify", "check", "compliance"],
+        "payment": ["payment", "batch", "scheduling", "template"],
+    }
+    
+    for category, keywords in keyword_map.items():
+        for kw in keywords:
+            if kw in text_lower:
+                tools.update(TOOL_SUGGESTIONS.get(category, []))
+                break
+    
+    if not tools:
+        tools = {"Amazon Q Business", "Amazon Quick Suite", "Python Automation"}
+    
+    return list(tools)[:5]
+
+
+def get_sde_contact(process: str) -> Dict[str, str]:
+    """Get the SDE/Tech contact for a given process"""
+    if process in SDE_CONTACTS:
+        return SDE_CONTACTS[process]
+    
+    # Fuzzy match
+    for key, contact in SDE_CONTACTS.items():
+        if key.lower() in process.lower() or process.lower() in key.lower():
+            return contact
+    
+    return {"alias": "pratpk", "name": "Prathima K", "team": "AI Velocity Program Lead"}
+
+
+def get_leader(process: str) -> Dict[str, str]:
+    """Get the org leader for a given process"""
+    if process in LEADER_MAPPING:
+        return LEADER_MAPPING[process]
+    for key, info in LEADER_MAPPING.items():
+        if key.lower() in process.lower() or process.lower() in key.lower():
+            return info
+    return {"leader": "Unknown", "poc": "TBD"}
+
+
+# ─── API Routes ───────────────────────────────────────────────────────────────
+
+@app.get("/api/submissions")
+async def get_submissions(
+    category: Optional[str] = None,
+    process: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None
+):
+    """Get all submissions with optional filters"""
+    data = load_submissions()
+    
+    if category:
+        data = [s for s in data if s["category"] == category]
+    if process:
+        data = [s for s in data if process.lower() in s["process"].lower()]
+    if status:
+        data = [s for s in data if s["status"].lower() == status.lower()]
+    if search:
+        search_lower = search.lower()
+        data = [s for s in data if 
+            search_lower in s.get("name", "").lower() or
+            search_lower in s.get("problem_statement", "").lower() or
+            search_lower in s.get("proposed_solution", "").lower() or
+            search_lower in s.get("project_name", "").lower() or
+            search_lower in s.get("process", "").lower() or
+            search_lower in s.get("challenge", "").lower() or
+            search_lower in s.get("ai_solution", "").lower()
+        ]
+    
+    return data
+
+
+@app.get("/api/submissions/{submission_id}")
+async def get_submission(submission_id: int):
+    """Get a specific submission by ID"""
+    data = load_submissions()
+    for s in data:
+        if s["id"] == submission_id:
+            return s
+    return {"error": "Not found"}
+
+
+@app.get("/api/stats")
+async def get_stats():
+    """Get dashboard statistics"""
+    data = load_submissions()
+    
+    total = len(data)
+    ideas = [s for s in data if s["category"] == "new_idea"]
+    wins = [s for s in data if s["category"] == "ai_win"]
+    replicates = [s for s in data if s["category"] == "replicate"]
+    
+    # Process breakdown
+    processes = Counter(s["process"] for s in data if s["process"])
+    
+    # Status breakdown
+    statuses = Counter(s["status"] for s in data)
+    
+    # Unique submitters
+    submitters = set(s["name"] for s in data if s["name"])
+    
+    # Timeline breakdown
+    timeline_counts = Counter(s["target_timeline"] for s in data if s["target_timeline"])
+    
+    # Implementation stage counts — only from completed wins
+    live_in_prod = len([s for s in wins if s.get("implementation_stage") == "Completed (Production)"])
+    uat_in_progress = len([s for s in wins if s.get("implementation_stage") != "Completed (Production)"])
+    
+    return {
+        "total_submissions": total,
+        "live_in_production": live_in_prod,
+        "uat_in_progress": uat_in_progress,
+        "new_ideas": len(ideas),
+        "completed_wins": len(wins),
+        "replicate_requests": len(replicates),
+        "unique_submitters": len(submitters),
+        "processes": dict(processes.most_common(15)),
+        "statuses": dict(statuses),
+        "timelines": dict(timeline_counts),
+        "server_time": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/ai-wins")
+async def get_ai_wins():
+    """Get only completed AI wins"""
+    data = load_submissions()
+    return [s for s in data if s["category"] == "ai_win"]
+
+
+@app.get("/api/ideas")
+async def get_ideas():
+    """Get only new AI ideas"""
+    data = load_submissions()
+    return [s for s in data if s["category"] == "new_idea"]
+
+
+@app.get("/api/replicates")
+async def get_replicates():
+    """Get only replicate requests"""
+    data = load_submissions()
+    return [s for s in data if s["category"] == "replicate"]
+
+
+@app.get("/api/suggest-tools")
+async def suggest_tools_api(problem: str = Query(..., description="Problem description")):
+    """Suggest AI tools based on problem description"""
+    tools = suggest_tools(problem)
+    return {"suggested_tools": tools}
+
+
+@app.get("/api/sde-contact")
+async def get_sde_contact_api(process: str = Query(..., description="Process name")):
+    """Get SDE/Tech contact for a process"""
+    contact = get_sde_contact(process)
+    return contact
+
+
+@app.get("/api/leaderboard")
+async def get_leaderboard():
+    """Get leader-wise breakdown of submissions"""
+    data = load_submissions()
+    leaders = {}
+    for s in data:
+        leader = s.get("leader", "Unknown")
+        if leader not in leaders:
+            leaders[leader] = {"leader": leader, "poc": s.get("leader_poc", "TBD"), "total": 0, "wins": 0, "ideas": 0, "replicates": 0, "in_progress": 0, "processes": set(), "contributors": set()}
+        leaders[leader]["total"] += 1
+        if s["category"] == "ai_win":
+            leaders[leader]["wins"] += 1
+        elif s["category"] == "new_idea":
+            if s["status"] in ("Approved", "In Review"):
+                leaders[leader]["in_progress"] += 1
+            else:
+                leaders[leader]["ideas"] += 1
+        elif s["category"] == "replicate":
+            leaders[leader]["replicates"] += 1
+        if s["process"]:
+            leaders[leader]["processes"].add(s["process"])
+        if s["name"]:
+            leaders[leader]["contributors"].add(s["name"])
+    
+    result = []
+    for l in sorted(leaders.values(), key=lambda x: x["total"], reverse=True):
+        result.append({
+            "leader": l["leader"],
+            "poc": l["poc"],
+            "total": l["total"],
+            "wins": l["wins"],
+            "ideas": l["ideas"],
+            "in_progress": l["in_progress"],
+            "replicates": l["replicates"],
+            "contributors": len(l["contributors"]),
+        })
+    return result
+
+
+@app.get("/api/stages")
+async def get_stages():
+    """Get implementation stage breakdown for ideas/wins being implemented"""
+    data = load_submissions()
+    stages = Counter(s["implementation_stage"] for s in data if s["implementation_stage"])
+    # Order them in a logical pipeline order
+    stage_order = [
+        "In Progress (Development Stage)",
+        "In Progress (UAT Stage)",
+        "Completed (Awaiting Approvals)",
+        "Completed (Production)",
+    ]
+    result = {}
+    for stage in stage_order:
+        if stage in stages:
+            result[stage] = stages[stage]
+    # Add any others not in the order
+    for stage, count in stages.items():
+        if stage not in result:
+            result[stage] = count
+    return result
+
+
+@app.get("/api/processes")
+async def get_processes():
+    """Get list of all unique processes"""
+    data = load_submissions()
+    processes = sorted(set(s["process"] for s in data if s["process"]))
+    return processes
+
+
+@app.post("/api/sync")
+async def trigger_sync():
+    """Trigger SharePoint CSV sync via Selenium (runs in background)"""
+    import subprocess
+    script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "sync_sharepoint.py")
+    if not os.path.exists(script_path):
+        return {"status": "error", "message": "Sync script not found"}
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, script_path],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+        return {"status": "started", "message": "SharePoint sync started in background. Edge browser will open to download CSV.", "pid": proc.pid}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/sync-status")
+async def sync_status():
+    """Check last sync time by checking CSV file modification time"""
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "submissions.csv")
+    if os.path.exists(csv_path):
+        mtime = os.path.getmtime(csv_path)
+        from datetime import datetime as dt
+        last_sync = dt.fromtimestamp(mtime).isoformat()
+        size = os.path.getsize(csv_path)
+        return {"last_sync": last_sync, "file_size": size, "exists": True}
+    return {"last_sync": None, "exists": False}
+
+
+# ─── Serve Frontend ──────────────────────────────────────────────────────────
+
+frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+
+@app.get("/")
+async def serve_frontend():
+    return FileResponse(os.path.join(frontend_path, "index.html"))
+
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=3000, reload=True)

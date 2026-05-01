@@ -553,11 +553,10 @@ async def trigger_sync():
     if not os.path.exists(script_path):
         return {"status": "error", "message": "Sync script not found"}
     try:
-        proc = subprocess.Popen(
-            [sys.executable, script_path],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-        )
+        kwargs = {"stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
+        if os.name == 'nt':
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        proc = subprocess.Popen([sys.executable, script_path], **kwargs)
         return {"status": "started", "message": "SharePoint sync started in background. Edge browser will open to download CSV.", "pid": proc.pid}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -589,4 +588,5 @@ if os.path.exists(frontend_path):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000, reload=True)
+    port = int(os.environ.get("PORT", 3000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

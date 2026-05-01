@@ -444,6 +444,7 @@ a:hover { color: var(--accent-tertiary); }
     border: 1px solid rgba(16,185,129,0.3); border-radius: var(--radius-sm);
     color: var(--success); font-size: 13px; font-weight: 500;
     cursor: pointer; transition: var(--transition); font-family: var(--font-primary);
+    user-select: none;
 }
 .btn-sync:hover { background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.5); box-shadow: 0 0 12px rgba(16,185,129,0.2); }
 

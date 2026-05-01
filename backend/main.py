@@ -3,7 +3,7 @@ AI Velocity Portal - Backend API
 Serves AI Wins Dashboard data from SharePoint CSV export
 """
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -573,6 +573,23 @@ async def sync_status():
         size = os.path.getsize(csv_path)
         return {"last_sync": last_sync, "file_size": size, "exists": True}
     return {"last_sync": None, "exists": False}
+
+
+@app.post("/api/upload-csv")
+async def upload_csv(file: UploadFile = File(...)):
+    """Upload a new SharePoint CSV to update dashboard data instantly"""
+    if not file.filename.endswith('.csv'):
+        return {"status": "error", "message": "Only CSV files are allowed"}
+    csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "submissions.csv")
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+    content = await file.read()
+    with open(csv_path, 'wb') as f:
+        f.write(content)
+    # Count rows to verify
+    with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
+        reader = csv.reader(f)
+        rows = sum(1 for _ in reader) - 1  # minus header
+    return {"status": "success", "message": f"CSV uploaded! {rows} rows loaded.", "rows": rows, "size": len(content)}
 
 
 # ─── Serve Frontend ──────────────────────────────────────────────────────────

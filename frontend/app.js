@@ -45,20 +45,34 @@ async function refreshData() {
     await loadDashboard();
 }
 
-async function syncFromSharePoint() {
-    showToast('📡 Starting SharePoint sync...');
+async function uploadCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) {
+        showToast('⚠️ Please select a CSV file');
+        return;
+    }
+    showToast('📤 Uploading CSV...');
     try {
-        const resp = await fetch(`${API}/sync`, { method: 'POST' });
+        const formData = new FormData();
+        formData.append('file', file);
+        const resp = await fetch(`${API}/upload-csv`, { method: 'POST', body: formData });
         const data = await resp.json();
-        if (data.status === 'started') {
-            showToast('🚀 Sync started! Edge browser will open to download CSV. Dashboard will auto-refresh in 60s.');
-            setTimeout(() => { showToast('🔄 Auto-refreshing data...'); loadDashboard(); }, 60000);
+        if (data.status === 'success') {
+            showToast('✅ ' + data.message + ' Refreshing dashboard...');
+            setTimeout(() => loadDashboard(), 1000);
         } else {
-            showToast('⚠️ Sync failed: ' + (data.message || 'Unknown error'));
+            showToast('⚠️ Upload failed: ' + (data.message || 'Unknown error'));
         }
     } catch (err) {
-        showToast('⚠️ Could not start sync: ' + err.message);
+        showToast('⚠️ Upload error: ' + err.message);
     }
+    input.value = ''; // reset file input
+}
+
+async function syncFromSharePoint() {
+    // Legacy: kept for backward compatibility
+    showToast('📤 Use the Upload CSV button to update data');
 }
 
 // ─── KPIs ──────────────────────────────────────────────────────────────────────

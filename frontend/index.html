@@ -32,7 +32,9 @@
                 <li><a href="#ideas" class="nav-link">Ideas</a></li>
             </ul>
             <div class="nav-actions">
-                <button class="btn-sync" onclick="syncFromSharePoint()" title="Sync latest data from SharePoint via Selenium">📡 Sync SP</button>
+                <label class="btn-sync" title="Upload fresh SharePoint CSV to update data">📤 Upload CSV
+                    <input type="file" accept=".csv" onchange="uploadCSV(this)" style="display:none;" />
+                </label>
                 <button class="btn-refresh" onclick="refreshData()" title="Refresh data from CSV">🔄 Refresh</button>
                 <a href="https://amazon.sharepoint.com/:l:/s/AI-Velocity-site/JAAPHqJF3gTTT7oVPuJQHa5RAV0oW__pLzpMhqA6bKsMEfo?nav=YzdhYTcwZTgtNDRhOS00NGQ2LWE0NzktMGZhNWRkMjgyM2Uz" target="_blank" class="btn-primary">✨ Submit Idea</a>
             </div>

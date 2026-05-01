@@ -133,6 +133,21 @@ TOOL_SUGGESTIONS = {
 }
 
 # ─── CSV Parsing ──────────────────────────────────────────────────────────────
+def get_field(row, *names):
+    """Get a field value by trying multiple possible column names (handles both manual CSV and REST API CSV)"""
+    for name in names:
+        val = row.get(name, "")
+        if val and str(val).strip():
+            return str(val).strip()
+    # Also try partial matches for truncated REST API names
+    for name in names:
+        prefix = name[:20]
+        for key in row:
+            if key.startswith(prefix) and row[key] and str(row[key]).strip():
+                return str(row[key]).strip()
+    return ""
+
+
 def load_submissions():
     """Load and parse the SharePoint CSV export"""
     csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "submissions.csv")
@@ -144,7 +159,7 @@ def load_submissions():
     with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader):
-            submission_type = row.get("What would you like to do", "").strip()
+            submission_type = get_field(row, "What would you like to do", "What would you like", "What_would_you_like")
             
             # Determine category
             if "Completed AI Win" in submission_type:

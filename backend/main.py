@@ -159,24 +159,24 @@ def load_submissions():
     with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader):
-            submission_type = get_field(row, "What would you like to do", "What would you like", "What_would_you_like")
+            submission_type = get_field(row, "What would you like to do", "What_x0020_would_x0020_you_x0020")
             
             # Determine category
-            if "Completed AI Win" in submission_type:
+            if "Completed AI Win" in submission_type or "completed" in submission_type.lower():
                 category = "ai_win"
-            elif "Replicate" in submission_type:
+            elif "Replicate" in submission_type or "replicate" in submission_type.lower():
                 category = "replicate"
             else:
                 category = "new_idea"
             
             # Parse expected impact
-            impact_raw = row.get("Expected Impact if Implemented?", "") or row.get("Rating (0-5)", "")
+            impact_raw = get_field(row, "Expected Impact if Implemented?", "Expected_x0020_Impact_x0020_if_x", "Rating (0-5)")
             
-            # Parse approval status
-            approval_status_raw = row.get("Approval Status", "") or row.get("Approval status", "")
-            manager_approval = row.get("Manager approval", "")
-            l6_approval = row.get("L6/L7 approval", "")
-            tech_approval = row.get("Tech team approval", "")
+            # Parse approval status — REST API uses "ApprovalStatus" or "OData__ApprovalStatus"
+            approval_status_raw = get_field(row, "Approval Status", "Approval status", "ApprovalStatus", "OData__ApprovalStatus")
+            manager_approval = get_field(row, "Manager approval", "Managerapproval")
+            l6_approval = get_field(row, "L6/L7 approval")
+            tech_approval = get_field(row, "Tech team approval", "Techteamapproval")
             
             # Determine overall status
             if approval_status_raw == "1":
@@ -195,48 +195,48 @@ def load_submissions():
                 status = "Completed"
             
             # Parse execution plan
-            execution_plan = row.get("How do you plan to execute this idea?", "").strip()
+            execution_plan = get_field(row, "How do you plan to execute this idea?", "How_x0020_do_x0020_you_x0020_pla")
             
             # Build submission object
-            name = row.get("Name", "").strip() or row.get("Your name", "").strip()
-            process = row.get("Process", "").strip() or row.get("Process you are in", "").strip() or row.get("Select your process", "").strip()
-            sub_process = row.get("Sub Process", "").strip() or row.get("Sub Process you are in", "").strip() or row.get("Select your Sub process", "").strip()
+            name = get_field(row, "Name", "Your name", "Title")
+            process = get_field(row, "Process", "Process you are in", "Select your process", "Select_x0020_your_x0020_process", "Process_x0020_you_x0020_are_x002")
+            sub_process = get_field(row, "Sub Process", "Sub Process you are in", "Select your Sub process", "Select_x0020_your_x0020_Sub_x002", "Sub_x0020_Process_x0020_you_x002")
             
             # For AI wins
-            project_name = row.get("Project Name", "").strip()
-            project_owner = row.get("Project Owner/Lead", "").strip()
-            project_team = row.get("Project Team", "").strip()
-            tech_poc = row.get("Tech team POC", "").strip()
-            challenge = row.get("Challenge addressed ", "").strip()
-            ai_solution_win = row.get("AI solution ", "").strip()
-            impact_win = row.get("Impact", "").strip()
-            replicable = row.get("Can this solution be replicated by others?", "").strip()
+            project_name = get_field(row, "Project Name")
+            project_owner = get_field(row, "Project Owner/Lead")
+            project_team = get_field(row, "Project Team")
+            tech_poc = get_field(row, "Tech team POC")
+            challenge = get_field(row, "Challenge addressed ", "Challenge addressed")
+            ai_solution_win = get_field(row, "AI solution ", "AI solution")
+            impact_win = get_field(row, "Impact")
+            replicable = get_field(row, "Can this solution be replicated by others?", "Can_x0020_this_x0020_solution_x0")
             
             # For ideas
-            problem_statement = row.get("Problem Statement", "").strip()
-            current_effort = row.get("Current Manual Effort", "").strip()
-            proposed_solution = row.get("Proposed AI Solution", "").strip()
-            estimated_volume = row.get("Estimated Volume", "").strip()
-            impact_types = row.get("Expected Impact if Implemented?", "").strip() or row.get("Other Impact", "").strip()
-            data_available = row.get("Data available", "").strip()
-            support_required = row.get("Support Required (if any)", "").strip()
-            target_timeline = row.get("Target Timeline", "").strip()
-            can_replicate = row.get("Can this be replicated across teams?", "").strip()
+            problem_statement = get_field(row, "Problem Statement")
+            current_effort = get_field(row, "Current Manual Effort", "Current_x0020_Manual_x0020_Effor")
+            proposed_solution = get_field(row, "Proposed AI Solution")
+            estimated_volume = get_field(row, "Estimated Volume", "Estimated_x0020_volume0")
+            impact_types = get_field(row, "Expected Impact if Implemented?", "Expected_x0020_Impact_x0020_if_x", "Other Impact", "Other_x0020_Impact")
+            data_available = get_field(row, "Data available")
+            support_required = get_field(row, "Support Required (if any)", "Support_x0020_Required_x0020__x0")
+            target_timeline = get_field(row, "Target Timeline")
+            can_replicate = get_field(row, "Can this be replicated across teams?", "Can_x0020_this_x0020_be_x0020_re")
             
             # For replicate requests
-            which_win = row.get("Which AI Win are you interested in replicating?", "").strip()
-            current_process_desc = row.get("Briefly describe your current process", "").strip() or row.get("Define your Current Process", "").strip()
+            which_win = get_field(row, "Which AI Win are you interested in replicating?", "Which_x0020_AI_x0020_Win_x0020_a")
+            current_process_desc = get_field(row, "Briefly describe your current process", "Briefly_x0020_describe_x0020_you", "Define your Current Process", "Define_x0020_your_x0020_Current_")
             
             # Implementation stage (new column)
-            impl_stage_raw = row.get("If your idea is being implemented by you , what stage it is in?", "").strip()
+            impl_stage_raw = get_field(row, "If your idea is being implemented by you , what stage it is in?", "If_x0020_your_x0020_idea_x0020_i")
             
             # Dates
-            created = row.get("Created", "").strip()
-            modified = row.get("Modified", "").strip()
-            created_by = row.get("Created By", "").strip()
-            modified_by = row.get("Modified By", "").strip()
-            manager = row.get("Your Manager", "").strip()
-            team = row.get("Your Team ", "").strip()
+            created = get_field(row, "Created")
+            modified = get_field(row, "Modified")
+            created_by = get_field(row, "Created By")
+            modified_by = get_field(row, "Modified By")
+            manager = get_field(row, "Your Manager")
+            team = get_field(row, "Your Team ", "Your Team")
             
             # Suggest tools based on problem keywords
             suggested_tools = suggest_tools(

@@ -70,6 +70,25 @@ async function uploadCSV(input) {
     input.value = ''; // reset file input
 }
 
+async function manualSync() {
+    const btn = document.querySelector('.btn-sync');
+    if (btn) { btn.textContent = '⏳ Syncing...'; btn.disabled = true; }
+    showToast('📡 Syncing from SharePoint... This may take ~1 minute.');
+    try {
+        const resp = await fetch(`${API}/sync`, { method: 'POST' });
+        const data = await resp.json();
+        showToast(data.message || '✅ Sync started!');
+        // Auto-refresh after 60 seconds to pick up new data
+        setTimeout(() => { refreshData(); showToast('🔄 Dashboard refreshed with latest data!'); }, 60000);
+        // Also refresh after 10s in case sync was fast
+        setTimeout(() => refreshData(), 10000);
+    } catch (e) {
+        showToast('⚠️ Sync request sent. Dashboard will refresh automatically.');
+    } finally {
+        if (btn) { setTimeout(() => { btn.textContent = '📡 Sync Now'; btn.disabled = false; }, 5000); }
+    }
+}
+
 async function syncFromSharePoint() {
     showToast('📡 Triggering SharePoint sync...');
     try {

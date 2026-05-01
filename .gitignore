@@ -1,4 +1,7 @@
 __pycache__/
+data/_downloads/
+data/*.backup_*
+data/sync_log.txt
 *.pyc
 .env
 venv/

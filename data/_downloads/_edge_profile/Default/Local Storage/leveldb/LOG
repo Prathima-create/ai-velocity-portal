@@ -1,6 +1,0 @@
-2026/05/01-19:49:08.469 8eb0 Reusing MANIFEST c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\Local Storage\leveldb/MANIFEST-000001
-2026/05/01-19:49:08.480 8eb0 Recovering log #4
-2026/05/01-19:49:08.487 8eb0 Reusing old log c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\Local Storage\leveldb/000004.log 
-2026/05/01-19:50:08.514 cc14 Level-0 table #8: started
-2026/05/01-19:50:08.538 cc14 Level-0 table #8: 59358 bytes OK
-2026/05/01-19:50:08.544 cc14 Delete type=0 #4

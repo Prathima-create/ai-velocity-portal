@@ -1,6 +1,0 @@
-2026/05/01-19:49:16.203 7128 Reusing MANIFEST c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
-2026/05/01-19:49:16.210 7128 Recovering log #4
-2026/05/01-19:49:16.211 7128 Reusing old log c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\EdgeCoupons/coupons_data.db/000004.log 
-2026/05/01-19:49:16.737 8e14 Level-0 table #8: started
-2026/05/01-19:49:16.755 8e14 Level-0 table #8: 682232 bytes OK
-2026/05/01-19:49:16.760 8e14 Delete type=0 #4

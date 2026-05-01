@@ -1,16 +1,13 @@
 name: Sync SharePoint Data
 
 on:
-  # Run every 2 hours automatically
-  schedule:
-    - cron: '0 */2 * * *'
+  # Disabled auto-schedule: SharePoint sync requires local Firefox browser with SSO
+  # Run locally with: python scripts/sync_sharepoint.py
+  # schedule:
+  #   - cron: '0 */2 * * *'
   
-  # Also allow manual trigger from GitHub UI or dashboard
+  # Manual trigger only (requires SHAREPOINT_ACCESS_TOKEN secret to be configured)
   workflow_dispatch:
-  
-  # Also trigger via API (so our dashboard Refresh button can trigger it)
-  repository_dispatch:
-    types: [sync-sharepoint]
 
 jobs:
   sync:

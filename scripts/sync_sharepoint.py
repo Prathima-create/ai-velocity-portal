@@ -251,48 +251,34 @@ def fetch_list_via_browser_js(cookies):
         log("Browser closed.")
 
 
+def decode_sp_name(name):
+    """Decode SharePoint _x00XX_ encoded field names to readable text"""
+    import re
+    def replace_hex(match):
+        hex_code = match.group(1)
+        try:
+            return chr(int(hex_code, 16))
+        except:
+            return match.group(0)
+    return re.sub(r'_x([0-9a-fA-F]{4})_', replace_hex, name)
+
+
 def items_to_csv(items, output_path):
-    """Convert SharePoint list items (JSON) to CSV matching the expected format"""
+    """Convert SharePoint list items (JSON) to CSV matching the backend's expected format"""
     if not items:
         log("No items to write")
         return False
     
-    # Map SharePoint internal field names to our expected CSV column names
-    # These are common SharePoint list column internal names
-    field_map = {
-        "Title": "Name",
-        "What_x0020_would_x0020_you_x0020_like_x0020_to_x0020_do": "What would you like to do",
-        "Process": "Process",
-        "Sub_x0020_Process": "Sub Process",
-        "Problem_x0020_Statement": "Problem Statement",
-        "Current_x0020_Manual_x0020_Effort": "Current Manual Effort",
-        "Proposed_x0020_AI_x0020_Solution": "Proposed AI Solution",
-        "Estimated_x0020_Volume": "Estimated Volume",
-        "Expected_x0020_Impact_x0020_if_x0020_Implemented_x003f_": "Expected Impact if Implemented?",
-        "Target_x0020_Timeline": "Target Timeline",
-        "Your_x0020_Manager": "Your Manager",
-        "Your_x0020_Team_x0020_": "Your Team ",
-        "Project_x0020_Name": "Project Name",
-        "Project_x0020_Owner_x002f_Lead": "Project Owner/Lead",
-        "Project_x0020_Team": "Project Team",
-        "Tech_x0020_team_x0020_POC": "Tech team POC",
-        "Challenge_x0020_addressed_x0020_": "Challenge addressed ",
-        "AI_x0020_solution_x0020_": "AI solution ",
-        "Impact": "Impact",
-        "Can_x0020_this_x0020_solution_x0020_be_x0020_replicated_x0020_by_x0020_others_x003f_": "Can this solution be replicated by others?",
-        "Data_x0020_available": "Data available",
-        "Support_x0020_Required_x0020__x0028_if_x0020_any_x0029_": "Support Required (if any)",
-        "How_x0020_do_x0020_you_x0020_plan_x0020_to_x0020_execute_x0020_this_x0020_idea_x003f_": "How do you plan to execute this idea?",
-        "Which_x0020_AI_x0020_Win_x0020_are_x0020_you_x0020_interested_x0020_in_x0020_replicating_x003f_": "Which AI Win are you interested in replicating?",
-        "Briefly_x0020_describe_x0020_your_x0020_current_x0020_process": "Briefly describe your current process",
-        "Can_x0020_this_x0020_be_x0020_replicated_x0020_across_x0020_teams_x003f_": "Can this be replicated across teams?",
-        "If_x0020_your_x0020_idea_x0020_is_x0020_being_x0020_implemented_x0020_by_x0020_you_x0020__x002c__x0020_what_x0020_stage_x0020_it_x0020_is_x0020_in_x003f_": "If your idea is being implemented by you , what stage it is in?",
-        "Approval_x0020_Status": "Approval Status",
-        "Manager_x0020_approval": "Manager approval",
-        "L6_x002f_L7_x0020_approval": "L6/L7 approval",
-        "Tech_x0020_team_x0020_approval": "Tech team approval",
-        "Created": "Created",
-        "Modified": "Modified",
+    # Skip metadata / internal fields
+    skip_keys = {
+        "__metadata", "__deferred", "odata.type", "odata.id", "odata.editLink",
+        "FileSystemObjectType", "ServerRedirectedEmbedUri", "ServerRedirectedEmbedUrl",
+        "ContentTypeId", "ComplianceAssetId", "OData__UIVersionString",
+        "GUID", "Id", "ID", "AuthorId", "EditorId", "Attachments",
+        "FieldValuesAsHtml", "FieldValuesAsText", "FieldValuesForEdit",
+        "File", "Folder", "ParentList", "Properties", "RoleAssignments",
+        "FirstUniqueAncestorSecurableObject", "GetDlpPolicyTip",
+        "ContentType", "AttachmentFiles", "LikedByInformation", "Versions",
     }
     
     # Collect all unique keys from items
@@ -300,24 +286,57 @@ def items_to_csv(items, output_path):
     for item in items:
         all_keys.update(item.keys())
     
-    # Build CSV columns — use field_map where available, raw name otherwise
-    # Skip metadata fields
-    skip_prefixes = ["__", "odata.", "GUID", "FileSystemObjectType", "ServerRedirectedEmbedUri"]
+    # Filter out skip keys and deferred/metadata objects
+    useful_keys = []
+    for key in all_keys:
+        if key in skip_keys:
+            continue
+        # Check if any item has a non-metadata value for this key
+        has_real_value = False
+        for item in items[:5]:  # Sample first 5
+            val = item.get(key)
+            if val is not None and not isinstance(val, dict):
+                has_real_value = True
+                break
+        if has_real_value:
+            useful_keys.append(key)
     
-    # First try to get all mapped columns
-    csv_columns = []
-    used_keys = set()
-    for sp_key, csv_name in field_map.items():
-        if sp_key in all_keys:
-            csv_columns.append((sp_key, csv_name))
-            used_keys.add(sp_key)
+    # Build column map: SP internal name → clean CSV name
+    # Decode _x0020_ etc. to spaces, _x002f_ to /, etc.
+    col_map = {}
+    for key in useful_keys:
+        col_map[key] = decode_sp_name(key)
     
-    # Add remaining useful fields
-    for key in sorted(all_keys):
-        if key not in used_keys and not any(key.startswith(p) for p in skip_prefixes):
-            if key not in ("ContentTypeId", "Id", "ID", "AuthorId", "EditorId", 
-                          "Attachments", "OData__UIVersionString", "ComplianceAssetId"):
-                csv_columns.append((key, key))
+    # Sort columns: put important ones first
+    priority_cols = [
+        "Title", "Name", "What would you like to do",
+        "Process", "Sub Process", "Select your process", "Select your Sub process",
+        "Problem Statement", "Current Manual Effort", "Proposed AI Solution",
+        "Estimated Volume", "Target Timeline",
+        "Project Name", "Project Owner/Lead", "Project Team", "Tech team POC",
+        "Challenge addressed ", "AI solution ", "Impact",
+        "Expected Impact if Implemented?",
+        "Can this solution be replicated by others?",
+        "Data available", "Support Required (if any)",
+        "How do you plan to execute this idea?",
+        "Which AI Win are you interested in replicating?",
+        "Briefly describe your current process",
+        "Can this be replicated across teams?",
+        "If your idea is being implemented by you , what stage it is in?",
+        "Approval Status", "Manager approval", "L6/L7 approval", "Tech team approval",
+        "Your Manager", "Your Team ", "Your name",
+        "Created", "Modified",
+    ]
+    
+    # Sort: priority columns first (in order), then remaining alphabetically
+    def sort_key(sp_key):
+        clean = col_map[sp_key]
+        for i, p in enumerate(priority_cols):
+            if clean.strip() == p.strip() or clean.startswith(p.strip()[:20]):
+                return (0, i)
+        return (1, clean)
+    
+    sorted_keys = sorted(useful_keys, key=sort_key)
     
     # Write CSV
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -330,13 +349,13 @@ def items_to_csv(items, output_path):
     
     with open(output_path, 'w', newline='', encoding='utf-8-sig') as f:
         writer = csv.writer(f)
-        # Header row
-        writer.writerow([col[1] for col in csv_columns])
+        # Header row with decoded names
+        writer.writerow([col_map[k] for k in sorted_keys])
         # Data rows
         for item in items:
             row = []
-            for sp_key, csv_name in csv_columns:
-                val = item.get(sp_key, "")
+            for key in sorted_keys:
+                val = item.get(key, "")
                 if val is None:
                     val = ""
                 elif isinstance(val, dict):
@@ -344,7 +363,7 @@ def items_to_csv(items, output_path):
                 row.append(str(val))
             writer.writerow(row)
     
-    log(f"CSV written: {len(items)} rows, {len(csv_columns)} columns")
+    log(f"CSV written: {len(items)} rows, {len(sorted_keys)} columns")
     return True
 
 

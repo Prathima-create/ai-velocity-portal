@@ -1,0 +1,6 @@
+2026/05/01-19:49:09.348 8e14 Reusing MANIFEST c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\IndexedDB\https_amazon.sharepoint.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/01-19:49:09.353 8e14 Recovering log #4
+2026/05/01-19:49:09.373 8e14 Reusing old log c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\IndexedDB\https_amazon.sharepoint.com_0.indexeddb.leveldb/000004.log 
+2026/05/01-19:49:11.998 88b4 Level-0 table #8: started
+2026/05/01-19:49:12.066 88b4 Level-0 table #8: 2658728 bytes OK
+2026/05/01-19:49:12.072 88b4 Delete type=0 #4

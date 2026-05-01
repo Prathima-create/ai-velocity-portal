@@ -1,0 +1,5 @@
+2026/05/01-19:40:18.443 b578 Creating DB c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\IndexedDB\https_amazon.sharepoint.com_0.indexeddb.leveldb since it was missing.
+2026/05/01-19:40:18.459 b578 Reusing MANIFEST c:\Users\pratpk\ai-velocity-portal\data\_downloads\_edge_profile\Default\IndexedDB\https_amazon.sharepoint.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/01-19:40:22.337 7944 Level-0 table #5: started
+2026/05/01-19:40:22.375 7944 Level-0 table #5: 2020651 bytes OK
+2026/05/01-19:40:22.378 7944 Delete type=0 #3

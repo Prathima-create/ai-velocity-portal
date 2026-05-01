@@ -29,35 +29,57 @@ def log(msg):
 
 
 def run_selenium_sync():
-    """Run the existing Selenium sync script"""
+    """Run Selenium sync, then check Downloads folder for latest CSV"""
+    import glob
+    import shutil
+    
+    csv_target = os.path.join(PROJECT_ROOT, "data", "submissions.csv")
+    downloads_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+    
+    # Step 1: Try Selenium sync
     sync_script = os.path.join(PROJECT_ROOT, "scripts", "sync_sharepoint.py")
-    if not os.path.exists(sync_script):
-        log("ERROR: sync_sharepoint.py not found!")
+    if os.path.exists(sync_script):
+        log("Starting Selenium SharePoint sync...")
+        try:
+            result = subprocess.run(
+                [sys.executable, sync_script],
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode == 0:
+                log("Selenium sync completed successfully")
+                return True
+            else:
+                log(f"Selenium sync exited with code {result.returncode}")
+        except subprocess.TimeoutExpired:
+            log("Selenium sync timed out")
+        except Exception as e:
+            log(f"Selenium error: {e}")
+    
+    # Step 2: Fallback — find latest "AI Velocity" CSV in Downloads folder
+    log("Checking Downloads folder for latest SharePoint CSV...")
+    csv_pattern = os.path.join(downloads_dir, "AI Velocity*.csv")
+    csv_files = glob.glob(csv_pattern)
+    
+    if not csv_files:
+        log("No AI Velocity CSV files found in Downloads folder")
         return False
     
-    log("Starting Selenium SharePoint sync...")
-    try:
-        result = subprocess.run(
-            [sys.executable, sync_script],
-            cwd=PROJECT_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=300  # 5 min timeout
-        )
-        if result.returncode == 0:
-            log("Selenium sync completed successfully")
-            log(f"Output: {result.stdout[-200:]}" if result.stdout else "No output")
-            return True
-        else:
-            log(f"Selenium sync failed (exit code {result.returncode})")
-            log(f"Error: {result.stderr[-200:]}" if result.stderr else "No error output")
-            return False
-    except subprocess.TimeoutExpired:
-        log("ERROR: Selenium sync timed out after 5 minutes")
-        return False
-    except Exception as e:
-        log(f"ERROR: {e}")
-        return False
+    # Get the newest one
+    latest_csv = max(csv_files, key=os.path.getmtime)
+    latest_mtime = os.path.getmtime(latest_csv)
+    current_mtime = os.path.getmtime(csv_target) if os.path.exists(csv_target) else 0
+    
+    if latest_mtime > current_mtime:
+        log(f"Found newer CSV: {os.path.basename(latest_csv)}")
+        shutil.copy2(latest_csv, csv_target)
+        log(f"Copied to {csv_target}")
+        return True
+    else:
+        log("No newer CSV found — data is already up to date")
+        return True
 
 
 def git_push():

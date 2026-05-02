@@ -159,8 +159,9 @@ def maybe_fetch_csv_from_github(csv_path):
     global _last_github_fetch
     import time
     
-    # Only auto-fetch on cloud (Render sets PORT env var)
-    if not os.environ.get("RENDER") and not os.environ.get("PORT"):
+    # Only auto-fetch on cloud (Render sets RENDER env var, or check if PORT is set by cloud)
+    is_cloud = os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID") or (os.environ.get("PORT") and os.name != 'nt')
+    if not is_cloud:
         return  # local dev — use local file
     
     now = time.time()

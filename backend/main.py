@@ -148,9 +148,47 @@ def get_field(row, *names):
     return ""
 
 
+# ─── GitHub CSV Auto-Fetch (for Render / cloud) ──────────────────────────────
+GITHUB_CSV_URL = "https://raw.githubusercontent.com/Prathima-create/ai-velocity-portal/main/data/submissions.csv"
+_last_github_fetch = 0
+GITHUB_FETCH_INTERVAL = 120  # seconds — fetch from GitHub every 2 minutes on cloud
+
+def maybe_fetch_csv_from_github(csv_path):
+    """On Render (cloud), fetch the latest CSV from GitHub every 2 minutes.
+    This avoids needing Docker rebuilds for data updates."""
+    global _last_github_fetch
+    import time
+    
+    # Only auto-fetch on cloud (Render sets PORT env var)
+    if not os.environ.get("RENDER") and not os.environ.get("PORT"):
+        return  # local dev — use local file
+    
+    now = time.time()
+    if now - _last_github_fetch < GITHUB_FETCH_INTERVAL:
+        return  # too soon, skip
+    
+    try:
+        import urllib.request
+        req = urllib.request.Request(GITHUB_CSV_URL, headers={"Cache-Control": "no-cache"})
+        resp = urllib.request.urlopen(req, timeout=15)
+        content = resp.read()
+        
+        if len(content) > 100:  # sanity check
+            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+            with open(csv_path, 'wb') as f:
+                f.write(content)
+            _last_github_fetch = now
+            print(f"[GitHub Fetch] Updated CSV from GitHub: {len(content):,} bytes", flush=True)
+    except Exception as e:
+        print(f"[GitHub Fetch] Failed: {e}", flush=True)
+
+
 def load_submissions():
     """Load and parse the SharePoint CSV export"""
     csv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "submissions.csv")
+    
+    # On cloud, auto-fetch latest CSV from GitHub
+    maybe_fetch_csv_from_github(csv_path)
     
     if not os.path.exists(csv_path):
         return []

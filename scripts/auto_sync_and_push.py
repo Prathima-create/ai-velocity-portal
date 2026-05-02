@@ -82,6 +82,20 @@ def run_selenium_sync():
         return True
 
 
+# Render Deploy Hook — triggers a new deploy without waiting for auto-deploy
+RENDER_DEPLOY_HOOK = "https://api.render.com/deploy/srv-d7q2n3lckfvc739fk6h0?key=Whwg99rFWN8"
+
+def trigger_render_deploy():
+    """Trigger Render deploy via deploy hook URL"""
+    try:
+        import urllib.request
+        resp = urllib.request.urlopen(RENDER_DEPLOY_HOOK, timeout=15)
+        data = resp.read().decode()
+        log(f"Render deploy triggered: {data}")
+    except Exception as e:
+        log(f"Render deploy hook failed (non-critical): {e}")
+
+
 def git_push():
     """Commit and push the updated CSV to GitHub"""
     csv_path = os.path.join(PROJECT_ROOT, "data", "submissions.csv")
@@ -132,7 +146,8 @@ def git_push():
         )
         
         if result.returncode == 0:
-            log("Git push successful! Render will auto-deploy in ~2 minutes.")
+            log("Git push successful! Triggering Render deploy...")
+            trigger_render_deploy()
             return True
         else:
             log(f"Git push failed: {result.stderr}")

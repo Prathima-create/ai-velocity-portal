@@ -96,6 +96,36 @@ def trigger_render_deploy():
         log(f"Render deploy hook failed (non-critical): {e}")
 
 
+def validate_csv(csv_path):
+    """Validate that the CSV has real data (not just headers or truncated columns)"""
+    import csv as csv_mod
+    try:
+        with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
+            reader = csv_mod.DictReader(f)
+            rows = list(reader)
+        
+        if not rows:
+            log("CSV validation FAILED: no data rows")
+            return False
+        
+        num_cols = len(rows[0])
+        if num_cols < 30:
+            log(f"CSV validation FAILED: only {num_cols} columns (expected 80+). Sync produced truncated data.")
+            return False
+        
+        # Check that values actually have data (not all empty)
+        non_empty = sum(1 for v in rows[0].values() if v and str(v).strip())
+        if non_empty < 5:
+            log(f"CSV validation FAILED: first row has only {non_empty} non-empty values. Data appears empty.")
+            return False
+        
+        log(f"CSV validation passed: {len(rows)} rows, {num_cols} cols, {non_empty} values in row 1")
+        return True
+    except Exception as e:
+        log(f"CSV validation error: {e}")
+        return False
+
+
 def git_push():
     """Commit and push the updated CSV to GitHub"""
     csv_path = os.path.join(PROJECT_ROOT, "data", "submissions.csv")
@@ -108,6 +138,12 @@ def git_push():
     size = os.path.getsize(csv_path)
     if size < 100:
         log(f"WARNING: CSV file is suspiciously small ({size} bytes). Skipping push.")
+        return False
+    
+    # Validate CSV has real data (not truncated/empty)
+    if not validate_csv(csv_path):
+        log("SKIPPING push: CSV failed validation. Restoring from git...")
+        subprocess.run(["git", "checkout", "--", "data/submissions.csv"], cwd=PROJECT_ROOT)
         return False
     
     log(f"CSV file: {size:,} bytes")

@@ -139,11 +139,20 @@ def get_field(row, *names):
         val = row.get(name, "")
         if val and str(val).strip():
             return str(val).strip()
-    # Also try partial matches for truncated REST API names
+    # Also try partial matches for truncated REST API names (SharePoint truncates to ~20 chars)
     for name in names:
-        prefix = name[:20]
+        for prefix_len in [20, 15, 12]:
+            prefix = name[:prefix_len]
+            if len(prefix) < 5:
+                continue
+            for key in row:
+                if key.startswith(prefix) and row[key] and str(row[key]).strip():
+                    return str(row[key]).strip()
+    # Also try with _x0020_ encoded spaces
+    for name in names:
+        encoded = name.replace(" ", "_x0020_")[:20]
         for key in row:
-            if key.startswith(prefix) and row[key] and str(row[key]).strip():
+            if key.startswith(encoded[:12]) and row[key] and str(row[key]).strip():
                 return str(row[key]).strip()
     return ""
 

@@ -109,8 +109,8 @@ async function syncFromSharePoint() {
 // ─── KPIs ──────────────────────────────────────────────────────────────────────
 function renderKPIs(stats, inProgressCount) {
     animateValue('kpiTotal', stats.total_submissions);
-    animateValue('kpiWins', stats.completed_wins);
     animateValue('kpiProd', stats.live_in_production);
+    animateValue('kpiUat', stats.uat_in_progress);
     animateValue('kpiIdeas', stats.new_ideas);
     animateValue('kpiRepl', stats.replicate_requests);
     animateValue('kpiPeople', stats.unique_submitters);

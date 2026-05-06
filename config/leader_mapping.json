@@ -1,0 +1,83 @@
+{
+  "_description": "AI Velocity Portal - Leader/POC/Manager Reference File",
+  "_last_updated": "2026-05-06",
+  "_source": "POC mapping.xlsx from Amit's org",
+  "_how_it_works": "Backend main.py uses 'reports_Level7' (employee login) to determine the L7 leader. The POC column determines who the AI Velocity POC is for that employee.",
+
+  "leaders": {
+    "Hari": {
+      "full_name": "THAMMALA, HARI",
+      "login": "hathamma",
+      "role": "L7",
+      "poc": "Bighnaraja Dash (bighnard)",
+      "employee_count": "Largest org"
+    },
+    "Kevin": {
+      "full_name": "Fernandes, Kevin DOMINIC",
+      "login": "fekevn",
+      "role": "L7",
+      "pocs": {
+        "arunimam": "Arunima Mukherjee (HYD - main POC)",
+        "komalvj": "Komal Jadhav (PNQ - secondary POC)"
+      },
+      "note": "Kevin has 2 POCs: Arunima for HYD employees, Komal for PNQ employees"
+    },
+    "Parul": {
+      "full_name": "Langar Gupta, Parul",
+      "login": "guppar",
+      "role": "L7",
+      "poc": "Naren Maheshwari (mahenare)",
+      "employee_count": "Second largest org"
+    },
+    "Ritchie": {
+      "full_name": "., Ritchie",
+      "login": "rajivkmr",
+      "role": "L7",
+      "poc": "Harshita Arora (haaroraz)"
+    },
+    "Ritesh": {
+      "full_name": "Joshi, Ritesh Harshad",
+      "login": "rjoshi",
+      "role": "L7",
+      "poc": "Vomsee Gowtham Yerubandi (vomseey)"
+    },
+    "Sanjeev": {
+      "full_name": "Mittal, Sanjeev",
+      "login": "skmittal",
+      "role": "L7",
+      "poc": "Yashika Verma (yasver)"
+    },
+    "Leela": {
+      "full_name": "Gera, Leela",
+      "login": "leela",
+      "role": "L7",
+      "poc": "Renuka Mishra (renmish)"
+    }
+  },
+
+  "poc_summary_table": {
+    "_format": "L7 Leader | POC Name | POC Login | Location",
+    "rows": [
+      "Hari (hathamma)     | Bighnaraja Dash     | bighnard  | HYD13",
+      "Kevin (fekevn)      | Arunima Mukherjee   | arunimam  | HYD13",
+      "Kevin (fekevn)      | Komal Jadhav        | komalvj   | PNQ18",
+      "Parul (guppar)      | Naren Maheshwari    | mahenare  | PNQ18",
+      "Ritchie (rajivkmr)  | Harshita Arora      | haaroraz  | HYD13",
+      "Ritesh (rjoshi)     | Vomsee Gowtham      | vomseey   | HYD13",
+      "Sanjeev (skmittal)  | Yashika Verma       | yasver    | HYD13",
+      "Leela (leela)       | Renuka Mishra       | renmish   | HYD13"
+    ]
+  },
+
+  "_usage_in_backend": "The backend main.py MANAGER_TO_LEADER dict maps 'Your Manager' field from SharePoint CSV → leader. The key insight from this Excel is: every employee's 'reports Level7' column tells us which L7 they belong to. So when we see a submission, we look up their manager name and route to the correct leader.",
+
+  "_update_instructions": [
+    "When a NEW EMPLOYEE joins:",
+    "  1. Find their 'reports Level7' login in this file to know which leader they belong to",
+    "  2. Add their manager (Supervisor Login ID) to MANAGER_TO_LEADER in backend/main.py",
+    "  3. Map it to the correct leader+poc combo",
+    "",
+    "IMPORTANT: The POC is determined by the 'reports Level7' column, NOT the process.",
+    "The POC mapping from Excel overrides the old process-based mapping."
+  ]
+}

@@ -62,7 +62,7 @@ MANAGER_TO_LEADER = {
     "Ali, Md Mujahed":                      {"leader": "Hari", "poc": "Bighnaraja"},
     "Janardhanan, Madhusudanan(MJ)":        {"leader": "Hari", "poc": "Bighnaraja"},
     "Srikanth, Kanumarlapudi":              {"leader": "Hari", "poc": "Bighnaraja"},
-    "Mishra, Renuka":                       {"leader": "Hari", "poc": "Bighnaraja"},
+    "Mishra, Renuka":                       {"leader": "Leela", "poc": "Renuka"},
     "Tandon, Bhawana":                      {"leader": "Hari", "poc": "Bighnaraja"},
     "Sharma, Yogendra":                     {"leader": "Hari", "poc": "Bighnaraja"},
     "Khan, Akbar":                          {"leader": "Hari", "poc": "Bighnaraja"},

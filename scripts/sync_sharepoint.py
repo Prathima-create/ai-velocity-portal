@@ -148,7 +148,7 @@ def sync_via_edge():
         return False
 
     driver.implicitly_wait(15)
-    driver.set_script_timeout(60)
+    driver.set_script_timeout(120)  # 2 min timeout for user ID resolution
 
     try:
         # ── Step 1: Navigate to SharePoint ──
@@ -236,18 +236,17 @@ def sync_via_edge():
             log("ERROR: Could not find the SharePoint list")
             return False
 
-        # ── Step 3: Fetch all items (with expanded Person fields) ──
+        # ── Step 3: Fetch all items ──
         log(f"Fetching items from '{list_title}'...")
         # Escape single quotes in list title for JS
         safe_title = list_title.replace("'", "\\'")
-        # Use $expand to get Person/Group fields as text (Title) instead of numeric IDs
-        # This ensures "Your Manager", "Tech team POC", "Support Team" come as names
+        # First fetch items normally, then try to resolve Person fields separately
         fetch_js = """
         var cb = arguments[arguments.length - 1];
         (async function() {
             try {
                 var items = [];
-                var url = "%s/_api/web/lists/getbytitle('%s')/items?$top=5000&$expand=Your_x0020_Manager,Tech_x0020_team_x0020_POC,Support_x0020_Team_x002f_,Your_x0020_name,Project_x0020_Team";
+                var url = "%s/_api/web/lists/getbytitle('%s')/items?$top=5000";
                 while (url) {
                     var r = await fetch(url, {
                         headers: {'Accept': 'application/json;odata=verbose'},
@@ -255,51 +254,36 @@ def sync_via_edge():
                     });
                     var d = await r.json();
                     if (d.d && d.d.results) {
-                        // Flatten expanded person fields to get Title (display name)
-                        d.d.results.forEach(function(item) {
-                            // Your Manager -> extract Title
-                            if (item.Your_x0020_Manager && item.Your_x0020_Manager.Title) {
-                                item['Your Manager'] = item.Your_x0020_Manager.Title;
-                            }
-                            // Tech team POC -> extract Title
-                            if (item.Tech_x0020_team_x0020_POC && item.Tech_x0020_team_x0020_POC.Title) {
-                                item['Tech team POC'] = item.Tech_x0020_team_x0020_POC.Title;
-                            }
-                            // Support Team -> extract Title
-                            if (item['Support_x0020_Team_x002f_'] && item['Support_x0020_Team_x002f_'].Title) {
-                                item['Support Team/ Partnership Team'] = item['Support_x0020_Team_x002f_'].Title;
-                            }
-                            // Your name -> extract Title
-                            if (item.Your_x0020_name && item.Your_x0020_name.Title) {
-                                item['Your name'] = item.Your_x0020_name.Title;
-                            }
-                        });
                         items = items.concat(d.d.results);
                         url = d.d.__next || null;
                     } else { break; }
                 }
-                cb(JSON.stringify(items));
-            } catch(e) {
-                // If $expand fails (field names mismatch), fallback to basic fetch
-                try {
-                    var items2 = [];
-                    var url2 = "%s/_api/web/lists/getbytitle('%s')/items?$top=5000";
-                    while (url2) {
-                        var r2 = await fetch(url2, {
+                // Now try to resolve Person field IDs to names
+                // Get all unique manager IDs
+                var mgrIds = [...new Set(items.map(i => i.Your_x0020_ManagerId || i.YourManagerId).filter(Boolean))];
+                var userCache = {};
+                // Fetch user info for each unique ID (batch)
+                for (var id of mgrIds) {
+                    try {
+                        var ur = await fetch("%s/_api/web/siteusers/getbyid(" + id + ")", {
                             headers: {'Accept': 'application/json;odata=verbose'},
                             credentials: 'same-origin'
                         });
-                        var d2 = await r2.json();
-                        if (d2.d && d2.d.results) {
-                            items2 = items2.concat(d2.d.results);
-                            url2 = d2.d.__next || null;
-                        } else { break; }
+                        var ud = await ur.json();
+                        if (ud.d && ud.d.Title) userCache[id] = ud.d.Title;
+                    } catch(e3) {}
+                }
+                // Inject resolved names into items
+                items.forEach(function(item) {
+                    var mgrId = item.Your_x0020_ManagerId || item.YourManagerId;
+                    if (mgrId && userCache[mgrId]) {
+                        item['Your Manager'] = userCache[mgrId];
                     }
-                    cb(JSON.stringify(items2));
-                } catch(e2) { cb(JSON.stringify({error: e2.message})); }
-            }
+                });
+                cb(JSON.stringify(items));
+            } catch(e) { cb(JSON.stringify({error: e.message})); }
         })();
-        """ % (SHAREPOINT_SITE_URL, safe_title, SHAREPOINT_SITE_URL, safe_title)
+        """ % (SHAREPOINT_SITE_URL, safe_title, SHAREPOINT_SITE_URL)
 
         raw = driver.execute_async_script(fetch_js)
         items = json.loads(raw)

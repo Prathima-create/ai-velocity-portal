@@ -258,6 +258,12 @@ def maybe_fetch_csv_from_github(csv_path):
         content = resp.read()
         
         if len(content) > 100:  # sanity check
+            # Validate the fetched CSV has "Your Manager" column (Form 12 format)
+            text = content.decode('utf-8-sig', errors='replace')
+            if 'Your Manager' not in text.split('\n')[0]:
+                print(f"[GitHub Fetch] Skipped: CSV missing 'Your Manager' column (CDN cache stale)", flush=True)
+                _last_github_fetch = now  # don't retry for 2 min
+                return
             os.makedirs(os.path.dirname(csv_path), exist_ok=True)
             with open(csv_path, 'wb') as f:
                 f.write(content)

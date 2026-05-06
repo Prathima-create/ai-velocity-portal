@@ -371,9 +371,6 @@ def load_submissions():
                 problem_statement + " " + proposed_solution + " " + challenge + " " + ai_solution_win
             )
             
-            # Get SDE contact
-            sde_contact = get_sde_contact(process)
-            
             # Normalize implementation stage
             if "not required" in impl_stage_raw.lower() or "completed win" in impl_stage_raw.lower() or "ready for production" in impl_stage_raw.lower():
                 impl_stage = "Completed (Production)"
@@ -391,16 +388,21 @@ def load_submissions():
             # Get leader info — manager-based lookup takes PRIORITY
             leader_info = MANAGER_TO_LEADER.get(manager) or get_leader(process)
             
-            # Get Tech team POC / Support Team from CSV (if available)
+            # Get Tech team POC / Support Team ONLY from CSV fields (no fallback)
             support_team = get_field(row, "Support Team/ Partnership Team", "Support Team/ StringId")
             tech_team_poc = get_field(row, "Tech team POC", "Tech team POCStringId")
+            
+            # SDE contact: ONLY from CSV "Tech team POC" and "Support Team" — no hardcoded fallback
+            sde_contact_name = tech_team_poc or support_team or ""
             
             # Build exploration tip — helps submitter know which tools to start with
             if suggested_tools and category == "new_idea":
                 top_tools = suggested_tools[:3]
-                exploration_tip = f"💡 You can start exploring your idea with: {', '.join(top_tools)}. Reach out to your Tech POC ({sde_contact.get('name', 'AI Velocity Team')}) for guidance on implementation."
+                poc_text = f" Reach out to your Tech POC ({sde_contact_name}) for guidance on implementation." if sde_contact_name else ""
+                exploration_tip = f"💡 You can start exploring your idea with: {', '.join(top_tools)}.{poc_text}"
             elif category == "replicate":
-                exploration_tip = f"💡 Connect with your Tech POC ({sde_contact.get('name', 'AI Velocity Team')}) to understand the existing solution and how to adapt it for your process."
+                poc_text = f" Connect with your Tech POC ({sde_contact_name}) to understand the existing solution." if sde_contact_name else ""
+                exploration_tip = f"💡{poc_text}" if poc_text else ""
             else:
                 exploration_tip = ""
             
@@ -415,7 +417,7 @@ def load_submissions():
                 "project_name": project_name,
                 "project_owner": project_owner,
                 "project_team": project_team,
-                "tech_poc": tech_poc or tech_team_poc,
+                "tech_poc": tech_team_poc,
                 "support_team": support_team,
                 "challenge": challenge,
                 "ai_solution": ai_solution_win or proposed_solution,
@@ -442,7 +444,7 @@ def load_submissions():
                 "modified_by": modified_by,
                 "suggested_tools": suggested_tools,
                 "exploration_tip": exploration_tip,
-                "sde_contact": sde_contact,
+                "sde_contact": {"name": sde_contact_name} if sde_contact_name else {},
                 "leader": leader_info.get("leader", "Unknown"),
                 "leader_poc": leader_info.get("poc", "TBD"),
                 "implementation_stage": impl_stage,

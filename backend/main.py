@@ -385,6 +385,19 @@ def load_submissions():
             # Get leader info — manager-based lookup takes PRIORITY
             leader_info = MANAGER_TO_LEADER.get(manager) or get_leader(process)
             
+            # Get Tech team POC / Support Team from CSV (if available)
+            support_team = get_field(row, "Support Team/ Partnership Team", "Support Team/ StringId")
+            tech_team_poc = get_field(row, "Tech team POC", "Tech team POCStringId")
+            
+            # Build exploration tip — helps submitter know which tools to start with
+            if suggested_tools and category == "new_idea":
+                top_tools = suggested_tools[:3]
+                exploration_tip = f"💡 You can start exploring your idea with: {', '.join(top_tools)}. Reach out to your Tech POC ({sde_contact.get('name', 'AI Velocity Team')}) for guidance on implementation."
+            elif category == "replicate":
+                exploration_tip = f"💡 Connect with your Tech POC ({sde_contact.get('name', 'AI Velocity Team')}) to understand the existing solution and how to adapt it for your process."
+            else:
+                exploration_tip = ""
+            
             submission = {
                 "id": idx + 1,
                 "category": category,
@@ -396,7 +409,8 @@ def load_submissions():
                 "project_name": project_name,
                 "project_owner": project_owner,
                 "project_team": project_team,
-                "tech_poc": tech_poc,
+                "tech_poc": tech_poc or tech_team_poc,
+                "support_team": support_team,
                 "challenge": challenge,
                 "ai_solution": ai_solution_win or proposed_solution,
                 "impact": impact_win or impact_types,
@@ -421,6 +435,7 @@ def load_submissions():
                 "modified": modified,
                 "modified_by": modified_by,
                 "suggested_tools": suggested_tools,
+                "exploration_tip": exploration_tip,
                 "sde_contact": sde_contact,
                 "leader": leader_info.get("leader", "Unknown"),
                 "leader_poc": leader_info.get("poc", "TBD"),

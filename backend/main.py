@@ -648,10 +648,7 @@ async def get_leaderboard():
         if s["category"] == "ai_win":
             leaders[leader]["wins"] += 1
         elif s["category"] == "new_idea":
-            if s["status"] in ("Approved", "In Review"):
-                leaders[leader]["in_progress"] += 1
-            else:
-                leaders[leader]["ideas"] += 1
+            leaders[leader]["ideas"] += 1
         elif s["category"] == "replicate":
             leaders[leader]["replicates"] += 1
         if s["process"]:

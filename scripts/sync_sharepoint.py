@@ -259,11 +259,30 @@ def sync_via_edge():
                     } else { break; }
                 }
                 // Now try to resolve Person field IDs to names
-                // Get all unique manager IDs
-                var mgrIds = [...new Set(items.map(i => i.Your_x0020_ManagerId || i.YourManagerId).filter(Boolean))];
+                // Collect ALL unique person IDs from manager, tech POC, support team, your name
+                var allIds = new Set();
+                // Also detect which property names actually exist for Support Team
+                var supportIdKey = null;
+                var nameIdKey = null;
+                if (items.length > 0) {
+                    var keys = Object.keys(items[0]);
+                    keys.forEach(function(k) {
+                        if (k.indexOf('Support') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) supportIdKey = k;
+                        if (k.indexOf('Your_x0020_name') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) nameIdKey = k;
+                    });
+                }
+                items.forEach(function(i) {
+                    var ids = [i.Your_x0020_ManagerId, i.YourManagerId, 
+                     i.Tech_x0020_team_x0020_POCId, i.TechteamPOCId];
+                    if (supportIdKey) ids.push(i[supportIdKey]);
+                    if (nameIdKey) ids.push(i[nameIdKey]);
+                    ids.forEach(function(id) {
+                        if (id) allIds.add(id);
+                    });
+                });
                 var userCache = {};
-                // Fetch user info for each unique ID (batch)
-                for (var id of mgrIds) {
+                // Fetch user info for each unique ID
+                for (var id of allIds) {
                     try {
                         var ur = await fetch("%s/_api/web/siteusers/getbyid(" + id + ")", {
                             headers: {'Accept': 'application/json;odata=verbose'},
@@ -276,9 +295,13 @@ def sync_via_edge():
                 // Inject resolved names into items
                 items.forEach(function(item) {
                     var mgrId = item.Your_x0020_ManagerId || item.YourManagerId;
-                    if (mgrId && userCache[mgrId]) {
-                        item['Your Manager'] = userCache[mgrId];
-                    }
+                    if (mgrId && userCache[mgrId]) item['Your Manager'] = userCache[mgrId];
+                    var techId = item.Tech_x0020_team_x0020_POCId || item.TechteamPOCId;
+                    if (techId && userCache[techId]) item['Tech team POC'] = userCache[techId];
+                    var suppId = supportIdKey ? item[supportIdKey] : null;
+                    if (suppId && userCache[suppId]) item['Support Team/ Partnership Team'] = userCache[suppId];
+                    var nameId = nameIdKey ? item[nameIdKey] : null;
+                    if (nameId && userCache[nameId]) item['Your name'] = userCache[nameId];
                 });
                 cb(JSON.stringify(items));
             } catch(e) { cb(JSON.stringify({error: e.message})); }

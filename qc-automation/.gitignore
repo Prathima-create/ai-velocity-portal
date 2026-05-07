@@ -1,0 +1,13 @@
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Local data (synced from S3, not committed)
+data/*.csv
+data/*.json
+data/sync_log.txt
+
+# Keep the data directory
+!data/.gitkeep

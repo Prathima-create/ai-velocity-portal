@@ -1,22 +1,16 @@
 """
-FinCom QC Automation Dashboard — Streamlit Web App v2
+FinCom QC Automation Dashboard — Streamlit Web App v3
 =====================================================
-Converted from qc_automation.py.py (HTML generator) to live Streamlit dashboard.
-Reads data from S3 bucket (synced from SharePoint).
-Data flow: SharePoint → S3 → EC2 Streamlit app
+Matches the interactive HTML dashboard look & feel.
+RAG colors, KPI cards, status cards, bar charts, org scorecard,
+analyst table, filter bar — all matching the original qc_automation.py HTML output.
 
-Key rules:
-  - Process file = source for ALL org-level numbers
-  - Analyst file = source for analyst-level rows ONLY
-  - Defect cell rule: string == "0" => defect (letter "O" is NOT a defect)
-  - Defects KPI = sum of "# of Missed Parameters" column
-  - Fatal: "Appropriate Resolution" or "Confidentiality" == "0"
-  - Non-Fatal Defect: any param == "0" but neither fatal param == "0"
+Data flow: SharePoint → S3 → EC2 Streamlit (CloudFront)
 """
 
 import streamlit as st
 import pandas as pd
-import os, re, warnings
+import os, re, json, warnings
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import Counter
@@ -30,7 +24,7 @@ st.set_page_config(
     page_title="FinCom QC Dashboard",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ============================================================
@@ -47,6 +41,116 @@ PARAMETERS = [
     "10. Annotations", "11. Resolution Code",
 ]
 FATAL_NAMES = {"appropriateresolution", "confidentiality"}
+
+
+# ============================================================
+# CUSTOM CSS (matching original HTML dashboard)
+# ============================================================
+def inject_css():
+    st.markdown("""
+    <style>
+    /* Hide Streamlit chrome */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container { padding: 16px 24px; max-width: 1400px; }
+    
+    /* Typography */
+    .dashboard-title { font-size: 18px; font-weight: 700; color: #1f2937; margin: 0 0 4px 0; }
+    .dashboard-sub { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+    .section-title { font-size: 14px; font-weight: 600; color: #374151; margin: 0 0 10px 0; }
+    
+    /* KPI Cards */
+    .kpi-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .kpi-card { flex: 1 1 0; min-width: 180px; background: #fff; padding: 16px;
+                border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+                transition: transform .1s; cursor: default; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,.1); }
+    .kpi-label { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin: 6px 0; color: #1f2937; }
+    .kpi-sub { font-size: 11px; color: #6b7280; }
+    .kpi-fatal .kpi-value { color: #dc2626; }
+    
+    /* RAG Colors */
+    .rag-green { background: #d1fae5 !important; }
+    .rag-amber { background: #fef3c7 !important; }
+    .rag-red { background: #fee2e2 !important; }
+    .rag-green-text { color: #047857; font-weight: 600; }
+    .rag-amber-text { color: #b45309; font-weight: 600; }
+    .rag-red-text { color: #b91c1c; font-weight: 600; }
+    
+    /* Status Cards */
+    .status-row-block { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .status-card { flex: 1 1 0; min-width: 200px; background: #fff; border-radius: 10px;
+                   padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .status-header { font-weight: 600; font-size: 13px; color: #374151;
+                     border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; margin-bottom: 8px; }
+    .status-total { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .status-item { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+    .status-sla { margin-top: 10px; padding: 6px 8px; border-radius: 6px;
+                  text-align: center; font-size: 12px; font-weight: 600; }
+    .sla-green { background: #d1fae5; color: #047857; }
+    .sla-red { background: #fee2e2; color: #b91c1c; }
+    
+    /* Bar Chart */
+    .bar-chart { margin-top: 8px; }
+    .bar-row { display: flex; align-items: center; margin-bottom: 6px; gap: 8px; }
+    .bar-label { width: 180px; font-size: 12px; color: #374151; white-space: nowrap;
+                 overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 20px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #3b82f6; border-radius: 4px; transition: width .3s; }
+    .bar-fill-fatal { background: #dc2626; }
+    .bar-fill-amber { background: #f59e0b; }
+    .bar-value { width: 36px; text-align: right; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+    
+    /* WoW bars */
+    .wow-block { margin-bottom: 16px; }
+    .wow-title { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .wow-bars { display: flex; gap: 6px; align-items: flex-end; height: 100px; }
+    .wow-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .wow-bar { width: 100%; max-width: 40px; height: 80px; background: #f3f4f6;
+               border-radius: 4px 4px 0 0; position: relative; overflow: hidden;
+               display: flex; align-items: flex-end; }
+    .wow-fill { width: 100%; border-radius: 4px 4px 0 0; transition: height .3s; }
+    .wow-num { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+    .wow-lbl { font-size: 10px; color: #6b7280; margin-top: 4px; }
+    .arr-up { color: #dc2626; font-size: 11px; }
+    .arr-dn { color: #047857; font-size: 11px; }
+    
+    /* MoM Table */
+    .mom-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .mom-table th { text-align: center; color: #6b7280; font-size: 11px; padding: 6px; }
+    .mom-table td { padding: 8px 6px; border-bottom: 1px solid #f3f4f6; }
+    .mom-lbl { font-weight: 500; color: #374151; }
+    .mom-val { text-align: center; font-weight: 600; }
+    .mom-delta { font-size: 11px; margin-top: 2px; }
+    .vs { text-align: center; color: #9ca3af; font-size: 11px; }
+    
+    /* Data Tables */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .data-table th { background: #f9fafb; padding: 8px; text-align: left;
+                     font-size: 11px; color: #6b7280; text-transform: uppercase;
+                     border-bottom: 2px solid #e5e7eb; cursor: pointer; }
+    .data-table th:hover { background: #f3f4f6; }
+    .data-table td { padding: 8px; border-bottom: 1px solid #f3f4f6; }
+    .data-table tr:hover { background: #f9fafb; }
+    
+    /* Section containers */
+    .section-box { background: #fff; border-radius: 10px; padding: 14px;
+                   box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+    .flex-row { display: flex; gap: 16px; margin-bottom: 16px; }
+    .flex-half { flex: 1 1 calc(50% - 8px); min-width: 300px; }
+    
+    /* Search */
+    .search-box { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db;
+                  border-radius: 6px; font-size: 13px; margin-bottom: 8px; }
+    
+    /* Filter bar */
+    .filter-bar { background: #fff; padding: 10px 14px; border-radius: 10px;
+                  box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px;
+                  font-size: 12px; color: #6b7280; }
+    </style>
+    """, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -144,55 +248,99 @@ def workdays_between(start, end):
     return max(0, days - 1)
 
 
+def rag_class(pct, inverted=False):
+    if pct is None:
+        return ''
+    if inverted:
+        if pct <= 5: return 'rag-green'
+        if pct <= 10: return 'rag-amber'
+        return 'rag-red'
+    if pct >= 95: return 'rag-green'
+    if pct >= 90: return 'rag-amber'
+    return 'rag-red'
+
+
+def rag_text_class(pct, inverted=False):
+    if pct is None:
+        return ''
+    if inverted:
+        if pct <= 5: return 'rag-green-text'
+        if pct <= 10: return 'rag-amber-text'
+        return 'rag-red-text'
+    if pct >= 95: return 'rag-green-text'
+    if pct >= 90: return 'rag-amber-text'
+    return 'rag-red-text'
+
+
+def fmt_pct(p):
+    return '—' if p is None else f'{p:.1f}%'
+
+
 # ============================================================
-# DATA LOADING FROM S3
+# DATA LOADING — S3 bucket or local SharePoint-synced folder
 # ============================================================
+SHAREPOINT_BASE = Path(r"C:\Users\pratpk\amazon.com\Automation hosting - Documents")
+CURRENT_MONTH_FOLDER = SHAREPOINT_BASE / "General_Apr_2026"
+PREV_MONTH_FOLDER = SHAREPOINT_BASE / "General_Mar_2026"
+
+
+def _get_s3_client():
+    import boto3
+    profile = os.environ.get('AWS_PROFILE', None)
+    if profile:
+        session = boto3.Session(profile_name=profile)
+    else:
+        session = boto3.Session()
+    return session.client('s3')
+
+
 @st.cache_data(ttl=300)
 def load_data_from_s3():
-    """Load CSV data from S3 bucket. Falls back to local data/ folder."""
+    bucket = os.environ.get('QC_S3_BUCKET', 'fincom-qc-data')
+    prefix = os.environ.get('QC_S3_PREFIX', 'General_Apr_2026/')
+
     try:
-        import boto3
-        s3 = boto3.client('s3')
-        bucket = os.environ.get('QC_S3_BUCKET', 'fincom-qc-data')
+        s3 = _get_s3_client()
+        response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        contents = response.get('Contents', [])
+        if contents:
+            files = {}
+            for obj in contents:
+                key = obj['Key']
+                filename = key.split('/')[-1]
+                if filename.endswith('.csv'):
+                    local_path = DATA_DIR / filename
+                    s3.download_file(bucket, key, str(local_path))
+                    files[filename] = local_path
+            if files:
+                return files, "S3", prefix
+    except Exception:
+        pass
 
-        # Try to load current month folder
-        prefixes_to_try = [
-            os.environ.get('QC_S3_PREFIX', 'General_Apr_2026/'),
-            'current/',
-        ]
-
-        for prefix in prefixes_to_try:
-            response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-            contents = response.get('Contents', [])
-            if contents:
-                files = {}
-                for obj in contents:
-                    key = obj['Key']
-                    filename = key.split('/')[-1]
-                    if filename.endswith('.csv'):
-                        local_path = DATA_DIR / filename
-                        s3.download_file(bucket, key, str(local_path))
-                        files[filename] = local_path
-                if files:
-                    return files, "S3", prefix
-        return {}, "S3 (empty)", ""
-    except Exception as e:
-        # Fall back to local files
+    local_data = os.environ.get('QC_LOCAL_DATA', '')
+    folder = Path(local_data) if local_data else CURRENT_MONTH_FOLDER
+    if folder.exists():
         files = {}
-        for f in DATA_DIR.glob("*.csv"):
+        for f in folder.glob("*.csv"):
             files[f.name] = f
-        return files, f"Local ({e})" if not files else "Local", ""
+        if files:
+            return files, "Local (SharePoint)", str(folder)
+
+    files = {}
+    for f in DATA_DIR.glob("*.csv"):
+        files[f.name] = f
+    if files:
+        return files, "Local (data/)", str(DATA_DIR)
+    return {}, "No data found", ""
 
 
 @st.cache_data(ttl=300)
 def load_prev_month_from_s3():
-    """Load previous month data for MoM comparison."""
-    try:
-        import boto3
-        s3 = boto3.client('s3')
-        bucket = os.environ.get('QC_S3_BUCKET', 'fincom-qc-data')
-        prefix = os.environ.get('QC_S3_PREV_PREFIX', 'General_Mar_2026/')
+    bucket = os.environ.get('QC_S3_BUCKET', 'fincom-qc-data')
+    prefix = os.environ.get('QC_S3_PREV_PREFIX', 'General_Mar_2026/')
 
+    try:
+        s3 = _get_s3_client()
         response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
         contents = response.get('Contents', [])
         files = {}
@@ -203,26 +351,33 @@ def load_prev_month_from_s3():
                 local_path = DATA_DIR / f"prev_{filename}"
                 s3.download_file(bucket, key, str(local_path))
                 files[filename] = local_path
-        return files
+        if files:
+            return files
     except Exception:
-        return {}
+        pass
+
+    local_prev = os.environ.get('QC_LOCAL_PREV_DATA', '')
+    folder = Path(local_prev) if local_prev else PREV_MONTH_FOLDER
+    if folder.exists():
+        files = {}
+        for f in folder.glob("*.csv"):
+            files[f.name] = f
+        return files
+    return {}
 
 
 # ============================================================
 # AUDIT FILE PARSER
 # ============================================================
 def parse_audit_file(filepath):
-    """Parse a FinCom audit CSV file (Process or Analyst)."""
     if not filepath.exists():
         return pd.DataFrame()
-
     try:
         raw = pd.read_csv(filepath, header=None, encoding='utf-8-sig',
                           on_bad_lines='skip', dtype=str)
     except Exception:
         return pd.DataFrame()
 
-    # Find header row
     header_row_idx = None
     for i in range(min(200, len(raw))):
         row = raw.iloc[i]
@@ -247,17 +402,14 @@ def parse_audit_file(filepath):
     df.columns = [norm(c) for c in df.columns]
     df = df.loc[:, ~df.columns.duplicated(keep='first')]
 
-    # Find missed parameters column
     missed_idx = None
     for i, c in enumerate(df.columns):
         if 'missedparameters' in c or 'ofmissed' in c or c == 'missed':
             missed_idx = i
             break
-
     if missed_idx is None:
         missed_idx = len(df.columns)
 
-    # Map parameter columns by position
     param_col_positions = []
     for i in range(11):
         pos = missed_idx + 1 + (i * 2)
@@ -271,7 +423,6 @@ def parse_audit_file(filepath):
         else:
             param_cols[p_name] = None
 
-    # Filter to numeric case numbers
     case_col = find_col_strict(df, "Case Number", "Case No", "Case ID")
     if case_col:
         df = df[df[case_col].astype(str).str.strip().str.match(r'^\d+(-\d+)?$', na=False)].copy()
@@ -279,7 +430,6 @@ def parse_audit_file(filepath):
     if len(df) == 0:
         return pd.DataFrame()
 
-    # Extract fields
     df['_analyst'] = get_series(df, "Analyst")
     df['_org'] = get_series(df, "ORG", "Org").replace('', 'Unknown')
     df['_case'] = get_series(df, "Case Number", "Case No", "Case ID")
@@ -293,7 +443,6 @@ def parse_audit_file(filepath):
     df['_date'] = parse_date_series(get_series(df, "Audit Date", "Date"))
     df['_week'] = df['_date'].apply(iso_week)
 
-    # Detect defects per row
     param_comment_cols = {}
     for i, p_name in enumerate(PARAMETERS):
         if i < len(param_col_positions):
@@ -339,94 +488,11 @@ def parse_audit_file(filepath):
 
 
 # ============================================================
-# DISPUTES PARSER
+# DISPUTES / RECTIFICATION / IVOC / DEFECT REDUCTION PARSERS
 # ============================================================
-def parse_disputes(filepath, sla_days=7):
+def parse_tracker_file(filepath, sla_days=7, tracker_type='disputes'):
     if not filepath.exists():
         return pd.DataFrame()
-
-    try:
-        raw = pd.read_csv(filepath, header=None, encoding='utf-8-sig',
-                          on_bad_lines='skip', dtype=str)
-    except Exception:
-        return pd.DataFrame()
-
-    # Find header
-    header_idx = 0
-    for i in range(min(20, len(raw))):
-        row = raw.iloc[i]
-        normalized = [norm(v) for v in row.values if pd.notna(v) and str(v).strip()]
-        if len(normalized) >= 3 and any('case' in c for c in normalized):
-            header_idx = i
-            break
-
-    df = pd.read_csv(filepath, header=header_idx, encoding='utf-8-sig',
-                     on_bad_lines='skip', dtype=str)
-    df.columns = [norm(c) for c in df.columns]
-    df = df.loc[:, ~df.columns.duplicated(keep='first')]
-    df = df.dropna(how='all')
-
-    case_col = find_col_strict(df, "Case Number", "Case No", "Case ID")
-    if case_col:
-        df = df[df[case_col].astype(str).str.strip().str.match(r'^\d+(-\d+)?$', na=False)].copy()
-
-    if len(df) == 0:
-        return pd.DataFrame()
-
-    df['_case'] = get_series(df, "Case Number", "Case No", "Case ID")
-    df['_owner'] = get_series(df, "Defect Owner", "Owner").str.lower()
-    df['_org'] = get_series(df, "ORG", "Org").replace('', 'Unknown')
-    df['_analyst'] = get_series(df, "Analyst", "Primary Analyst")
-
-    df['_audit_date'] = parse_date_series(get_series(df, "Audit Date"))
-    df['_dispute_date'] = parse_date_series(get_series(df, "Day of Dispute", "Dispute Date", "Date"))
-
-    # Category
-    def _category(row):
-        owner = str(row.get('_owner', '')).lower()
-        if 'auditor' in owner: return "QC Error (Auditor)"
-        if 'quest lead' in owner or 'questlead' in owner: return "To Quest Lead"
-        if 'backup' in owner or 'back up' in owner: return "Moved to Backup"
-        if 'primary' in owner: return "Stayed with Primary"
-        return "Other"
-    df['_category'] = df.apply(_category, axis=1)
-
-    # SLA
-    def _sla(row):
-        ad = row.get('_audit_date')
-        dd = row.get('_dispute_date')
-        try:
-            if dd is None or ad is None or pd.isna(dd) or pd.isna(ad):
-                return "Pending"
-        except Exception:
-            return "Pending"
-        wd = workdays_between(ad, dd)
-        if wd is None: return "Pending"
-        return "SLA Met" if wd <= sla_days else "SLA Breached"
-    df['_sla'] = df.apply(_sla, axis=1)
-
-    return df
-
-
-# ============================================================
-# RECTIFICATION / IVOC PARSER
-# ============================================================
-def parse_rectification(filepath, sla_days=5):
-    return _two_state_parser(filepath, sla_days,
-        status_keys=["Rectification Status", "Status"],
-        end_keys=["Rectification Date", "Closed Date", "Date"])
-
-
-def parse_ivoc(filepath, sla_days=5):
-    return _two_state_parser(filepath, sla_days,
-        status_keys=["IVOC Status", "Rectification Status", "Status"],
-        end_keys=["IVOC Rectification Date", "Rectification Date", "Closed Date", "Date"])
-
-
-def _two_state_parser(filepath, sla_days, status_keys, end_keys):
-    if not filepath.exists():
-        return pd.DataFrame()
-
     try:
         raw = pd.read_csv(filepath, header=None, encoding='utf-8-sig',
                           on_bad_lines='skip', dtype=str)
@@ -437,7 +503,7 @@ def _two_state_parser(filepath, sla_days, status_keys, end_keys):
     for i in range(min(20, len(raw))):
         row = raw.iloc[i]
         normalized = [norm(v) for v in row.values if pd.notna(v) and str(v).strip()]
-        if len(normalized) >= 3 and any('case' in c for c in normalized):
+        if len(normalized) >= 3 and any('case' in c or 'analyst' in c for c in normalized):
             header_idx = i
             break
 
@@ -457,119 +523,61 @@ def _two_state_parser(filepath, sla_days, status_keys, end_keys):
     df['_case'] = get_series(df, "Case Number", "Case No", "Case ID")
     df['_org'] = get_series(df, "ORG", "Org").replace('', 'Unknown')
     df['_analyst'] = get_series(df, "Analyst", "Primary Analyst")
-    df['_action'] = get_series(df, "Action Taken", "Action", "Feedback Provided")
     df['_audit_date'] = parse_date_series(get_series(df, "Audit Date", "Paste Date"))
-    df['_end_date'] = parse_date_series(get_series(df, *end_keys))
-    df['_status_raw'] = get_series(df, *status_keys)
 
-    def _status(row):
-        end_date = row.get('_end_date')
-        audit_date = row.get('_audit_date')
-        action = str(row.get('_action', '')).lower().strip()
-        status_raw = str(row.get('_status_raw', '')).lower().strip()
-
-        try:
-            if end_date is not None and pd.notna(end_date):
-                return "Rectified"
-        except Exception:
-            pass
-        if 'rectif' in status_raw and 'not' not in status_raw:
-            return "Rectified"
-        if action and action not in ('na', 'n/a', 'none', 'pending', 'no action', ''):
-            return "Rectified"
-        try:
-            if audit_date is not None and pd.notna(audit_date):
-                wd_today = workdays_between(audit_date, datetime.now())
-                if wd_today is not None and wd_today > sla_days:
-                    return "Pending — Missed SLA"
-        except Exception:
-            pass
-        return "Pending — Within SLA"
-
-    df['_status'] = df.apply(_status, axis=1)
-
-    def _sla(row):
-        s = row.get('_status', '')
-        if s == "Rectified": return "SLA Met"
-        if s == "Pending — Missed SLA": return "SLA Breached"
-        return "Pending"
-    df['_sla'] = df.apply(_sla, axis=1)
-
-    return df
-
-
-# ============================================================
-# DEFECT REDUCTION PARSER
-# ============================================================
-def parse_defect_reduction(filepath, sla_days=5):
-    if not filepath.exists():
-        return pd.DataFrame()
-
-    try:
-        raw = pd.read_csv(filepath, header=None, encoding='utf-8-sig',
-                          on_bad_lines='skip', dtype=str)
-    except Exception:
-        return pd.DataFrame()
-
-    header_idx = 0
-    for i in range(min(20, len(raw))):
-        row = raw.iloc[i]
-        normalized = [norm(v) for v in row.values if pd.notna(v) and str(v).strip()]
-        if len(normalized) >= 3 and any('analyst' in c for c in normalized):
-            header_idx = i
-            break
-
-    df = pd.read_csv(filepath, header=header_idx, encoding='utf-8-sig',
-                     on_bad_lines='skip', dtype=str)
-    df.columns = [norm(c) for c in df.columns]
-    df = df.loc[:, ~df.columns.duplicated(keep='first')]
-    df = df.dropna(how='all')
-
-    case_col = find_col_strict(df, "Case Number", "Case No", "Case ID")
-    if case_col:
-        df = df[df[case_col].astype(str).str.strip().str.match(r'^\d+(-\d+)?$', na=False)].copy()
-
-    if len(df) == 0:
-        return pd.DataFrame()
-
-    df['_case'] = get_series(df, "Case Number", "Case No", "Case ID")
-    df['_org'] = get_series(df, "ORG", "Org").replace('', 'Unknown')
-    df['_analyst'] = get_series(df, "Analyst")
-    df['_action'] = get_series(df, "Action Taken", "Action", "Feedback Provided")
-    df['_status_raw'] = get_series(df, "Status")
-    df['_case_update_date'] = parse_date_series(get_series(df, "Case Update Date", "Update Date"))
-
-    def _status(row):
-        status = str(row.get('_status_raw', '')).lower().strip()
-        if 'complet' in status or 'done' in status or 'closed' in status:
-            return "Action Taken"
-        cud = row.get('_case_update_date')
-        try:
-            if cud is not None and pd.notna(cud):
-                wd_today = workdays_between(cud, datetime.now())
-                if wd_today is not None and wd_today > sla_days:
-                    return "Pending — Missed SLA"
-        except Exception:
-            pass
-        return "Pending — Within SLA"
-
-    df['_status'] = df.apply(_status, axis=1)
-
-    def _sla(row):
-        s = row.get('_status', '')
-        if s == "Action Taken": return "SLA Met"
-        if s == "Pending — Missed SLA": return "SLA Breached"
-        return "Pending"
-    df['_sla'] = df.apply(_sla, axis=1)
+    if tracker_type == 'disputes':
+        df['_owner'] = get_series(df, "Defect Owner", "Owner").str.lower()
+        df['_dispute_date'] = parse_date_series(get_series(df, "Day of Dispute", "Dispute Date"))
+        def _cat(row):
+            owner = str(row.get('_owner', '')).lower()
+            if 'auditor' in owner: return "QC Error (Auditor)"
+            if 'quest lead' in owner or 'questlead' in owner: return "To Quest Lead"
+            if 'backup' in owner or 'back up' in owner: return "Moved to Backup"
+            if 'primary' in owner: return "Stayed with Primary"
+            return "Other"
+        df['_status'] = df.apply(_cat, axis=1)
+        def _sla(row):
+            ad, dd = row.get('_audit_date'), row.get('_dispute_date')
+            try:
+                if dd is None or ad is None or pd.isna(dd) or pd.isna(ad):
+                    return "Pending"
+            except: return "Pending"
+            wd = workdays_between(ad, dd)
+            if wd is None: return "Pending"
+            return "SLA Met" if wd <= sla_days else "SLA Breached"
+        df['_sla'] = df.apply(_sla, axis=1)
+    else:
+        df['_action'] = get_series(df, "Action Taken", "Action", "Feedback Provided")
+        df['_end_date'] = parse_date_series(get_series(df, "Rectification Date", "Closed Date", "Date", "IVOC Rectification Date"))
+        df['_status_raw'] = get_series(df, "Status", "Rectification Status", "IVOC Status")
+        def _status(row):
+            end_date = row.get('_end_date')
+            action = str(row.get('_action', '')).lower().strip()
+            status_raw = str(row.get('_status_raw', '')).lower().strip()
+            try:
+                if end_date is not None and pd.notna(end_date): return "Rectified"
+            except: pass
+            if 'rectif' in status_raw and 'not' not in status_raw: return "Rectified"
+            if action and action not in ('na', 'n/a', 'none', 'pending', 'no action', ''): return "Rectified"
+            audit_date = row.get('_audit_date')
+            try:
+                if audit_date is not None and pd.notna(audit_date):
+                    wd = workdays_between(audit_date, datetime.now())
+                    if wd is not None and wd > sla_days: return "Pending — Missed SLA"
+            except: pass
+            return "Pending — Within SLA"
+        df['_status'] = df.apply(_status, axis=1)
+        def _sla(row):
+            s = row.get('_status', '')
+            if s == "Rectified": return "SLA Met"
+            if "Missed SLA" in s: return "SLA Breached"
+            return "Pending"
+        df['_sla'] = df.apply(_sla, axis=1)
 
     return df
 
 
-# ============================================================
-# FIND FILE HELPER
-# ============================================================
 def find_file(files, *keywords):
-    """Find a file by keyword in filename."""
     for name, path in files.items():
         name_lower = name.lower()
         if all(kw.lower() in name_lower for kw in keywords):
@@ -578,24 +586,279 @@ def find_file(files, *keywords):
 
 
 # ============================================================
+# HTML COMPONENTS (matching original dashboard)
+# ============================================================
+def render_kpi_row(total_audited, accuracy_avg, fatal_count, inap_count, conf_count, defects_total):
+    defect_rate = (defects_total / total_audited * 100) if total_audited else 0
+    acc_rag = rag_class(accuracy_avg)
+    def_rag = rag_class(defect_rate, inverted=True)
+
+    html = f'''
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Cases Audited</div>
+        <div class="kpi-value">{total_audited}</div>
+        <div class="kpi-sub">From Process file</div>
+      </div>
+      <div class="kpi-card {acc_rag}">
+        <div class="kpi-label">Accuracy</div>
+        <div class="kpi-value">{fmt_pct(accuracy_avg)}</div>
+        <div class="kpi-sub">Average across all audits</div>
+      </div>
+      <div class="kpi-card kpi-fatal">
+        <div class="kpi-label">Fatal Errors</div>
+        <div class="kpi-value">{fatal_count}</div>
+        <div class="kpi-sub">Inappropriate Resolution: {inap_count} &nbsp;|&nbsp; Confidentiality: {conf_count}</div>
+      </div>
+      <div class="kpi-card {def_rag}">
+        <div class="kpi-label">Defects</div>
+        <div class="kpi-value">{defects_total}</div>
+        <div class="kpi-sub">{fmt_pct(defect_rate)} defect rate</div>
+      </div>
+    </div>'''
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_status_cards(disputes_df, rect_df, ivoc_df, defred_df):
+    def _card(title, df):
+        if df is None or len(df) == 0:
+            return f'''<div class="status-card">
+              <div class="status-header">{title}</div>
+              <div class="status-total" style="color:#9ca3af;">No data</div>
+            </div>'''
+        total = len(df)
+        breakdown = df['_status'].value_counts()
+        sla_met = (df['_sla'] == 'SLA Met').sum()
+        sla_total = total
+        sla_pct = round(sla_met / sla_total * 100, 1) if sla_total else 0
+        sla_cls = 'sla-green' if sla_pct >= 100 else 'sla-red'
+
+        items = ''
+        for label, count in breakdown.items():
+            items += f'<div class="status-item"><span>{label}</span><strong>{count}</strong></div>'
+
+        return f'''<div class="status-card">
+          <div class="status-header">{title}</div>
+          <div class="status-total">Total: <strong>{total}</strong></div>
+          {items}
+          <div class="status-sla {sla_cls}">SLA: {sla_met}/{sla_total} ({fmt_pct(sla_pct)})</div>
+        </div>'''
+
+    html = '<div class="status-row-block">'
+    html += _card('Disputes', disputes_df if len(disputes_df) > 0 else None)
+    html += _card('Rectification', rect_df if len(rect_df) > 0 else None)
+    html += _card('IVOC', ivoc_df if len(ivoc_df) > 0 else None)
+    html += _card('Defect Reduction', defred_df if len(defred_df) > 0 else None)
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_wow(filtered_df):
+    if len(filtered_df) == 0:
+        return
+    
+    weeks = sorted([w for w in filtered_df['_week'].unique() if w],
+                   key=lambda w: int(w.replace('W', '')) if w.startswith('W') else 0)
+    if not weeks:
+        st.markdown('<p style="color:#6b7280;font-size:12px;">No weekly data.</p>', unsafe_allow_html=True)
+        return
+
+    wow_data = []
+    prev_fatal = prev_nonfatal = 0
+    for w in weeks:
+        g = filtered_df[filtered_df['_week'] == w]
+        f_count = int(g['_is_fatal'].sum())
+        n_count = int(g['_is_nonfatal'].sum())
+        f_arrow = 'up' if f_count > prev_fatal else ('down' if f_count < prev_fatal else '')
+        n_arrow = 'up' if n_count > prev_nonfatal else ('down' if n_count < prev_nonfatal else '')
+        wow_data.append({'week': w, 'audited': len(g), 'fatal': f_count, 'nonfatal': n_count,
+                         'f_arrow': f_arrow, 'n_arrow': n_arrow})
+        prev_fatal, prev_nonfatal = f_count, n_count
+
+    for metric_key, metric_label, color in [
+        ('audited', 'Cases Audited', '#3b82f6'),
+        ('fatal', 'Fatal Defects', '#dc2626'),
+        ('nonfatal', 'Non-Fatal Defects', '#f59e0b'),
+    ]:
+        max_val = max(w[metric_key] for w in wow_data) or 1
+        bars = ''
+        for w in wow_data:
+            pct = w[metric_key] / max_val * 100
+            arrow_html = ''
+            if metric_key == 'fatal' and w['f_arrow']:
+                arrow_html = f'<span class="arr-{"up" if w["f_arrow"]=="up" else "dn"}">{"↑" if w["f_arrow"]=="up" else "↓"}</span>'
+            elif metric_key == 'nonfatal' and w['n_arrow']:
+                arrow_html = f'<span class="arr-{"up" if w["n_arrow"]=="up" else "dn"}">{"↑" if w["n_arrow"]=="up" else "↓"}</span>'
+            bars += f'''<div class="wow-bar-col">
+              <div class="wow-num">{w[metric_key]} {arrow_html}</div>
+              <div class="wow-bar"><div class="wow-fill" style="height:{pct}%;background:{color}"></div></div>
+              <div class="wow-lbl">{w['week']}</div>
+            </div>'''
+        st.markdown(f'''<div class="wow-block">
+          <div class="wow-title">{metric_label}</div>
+          <div class="wow-bars">{bars}</div>
+        </div>''', unsafe_allow_html=True)
+
+
+def render_mom(filtered_df, prev_df):
+    if prev_df is None or len(prev_df) == 0:
+        st.markdown('<p style="color:#6b7280;font-size:12px;">Previous month data not available.</p>', unsafe_allow_html=True)
+        return
+
+    cur_aud = len(filtered_df)
+    cur_fat = int(filtered_df['_is_fatal'].sum())
+    cur_acc = round(filtered_df['_accuracy'].mean(), 1) if cur_aud else 0
+    prev_aud = len(prev_df)
+    prev_fat = int(prev_df['_is_fatal'].sum())
+    prev_acc = round(prev_df['_accuracy'].mean(), 1) if prev_aud else 0
+
+    def _delta(cur, prev, better_lower=False):
+        d = cur - prev
+        if d == 0: return '<span style="color:#6b7280;font-size:11px;">no change</span>'
+        if better_lower:
+            cls = 'arr-dn' if d < 0 else 'arr-up'
+            arrow = '↓' if d < 0 else '↑'
+        else:
+            cls = 'arr-up' if d > 0 else 'arr-dn'
+            arrow = '↑' if d > 0 else '↓'
+        return f'<span class="{cls}">{arrow} {abs(d)}</span>'
+
+    html = f'''<table class="mom-table">
+      <tr><th></th><th>Previous</th><th></th><th>Current</th></tr>
+      <tr><td class="mom-lbl">Total Audited</td><td class="mom-val">{prev_aud}</td><td class="vs">vs</td>
+          <td class="mom-val">{cur_aud}<div class="mom-delta">{_delta(cur_aud, prev_aud)}</div></td></tr>
+      <tr><td class="mom-lbl">Fatal Errors</td><td class="mom-val">{prev_fat}</td><td class="vs">vs</td>
+          <td class="mom-val">{cur_fat}<div class="mom-delta">{_delta(cur_fat, prev_fat, better_lower=True)}</div></td></tr>
+      <tr><td class="mom-lbl">Accuracy</td><td class="mom-val">{fmt_pct(prev_acc)}</td><td class="vs">vs</td>
+          <td class="mom-val">{fmt_pct(cur_acc)}<div class="mom-delta">{_delta(round(cur_acc-prev_acc,1), 0)}%</div></td></tr>
+    </table>'''
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_top_defects(filtered_df):
+    counter = Counter()
+    for hits in filtered_df['_param_hits']:
+        for p in hits:
+            counter[p] += 1
+    if not counter:
+        st.markdown('<p style="color:#6b7280;font-size:12px;">No defects recorded.</p>', unsafe_allow_html=True)
+        return
+
+    top = counter.most_common()
+    max_c = top[0][1] if top else 1
+    html = '<div class="bar-chart">'
+    for name, count in top:
+        pct = (count / max_c * 100) if max_c else 0
+        html += f'''<div class="bar-row">
+          <div class="bar-label">{name}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:{pct}%"></div></div>
+          <div class="bar-value">{count}</div>
+        </div>'''
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_org_scorecard(filtered_df):
+    org_data = []
+    for org, g in filtered_df.groupby('_org'):
+        if not org or org == 'Unknown':
+            continue
+        oa = len(g)
+        of = int(g['_is_fatal'].sum())
+        on = int(g['_is_nonfatal'].sum())
+        acc = g['_accuracy'].mean()
+        dr = (of + on) / oa * 100 if oa else 0
+        org_data.append({'org': org, 'audited': oa, 'accuracy': acc, 'fatal': of, 'nonfatal': on, 'defect_rate': dr})
+
+    if not org_data:
+        return
+
+    html = '''<table class="data-table">
+      <thead><tr><th>Org</th><th>Cases Audited</th><th>Accuracy</th><th>Fatal</th><th>Non-Fatal</th><th>Defect Rate</th></tr></thead><tbody>'''
+    for o in sorted(org_data, key=lambda x: x['accuracy']):
+        acc_cls = rag_text_class(o['accuracy'])
+        dr_cls = rag_text_class(o['defect_rate'], inverted=True)
+        html += f'''<tr>
+          <td><strong>{o['org']}</strong></td>
+          <td>{o['audited']}</td>
+          <td class="{acc_cls}">{fmt_pct(o['accuracy'])}</td>
+          <td>{o['fatal']}</td>
+          <td>{o['nonfatal']}</td>
+          <td class="{dr_cls}">{fmt_pct(o['defect_rate'])}</td>
+        </tr>'''
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_fatal_by_analyst(analyst_df):
+    if len(analyst_df) == 0:
+        st.markdown('<p style="color:#6b7280;font-size:12px;">No fatal errors in Analyst file.</p>', unsafe_allow_html=True)
+        return
+
+    fatal_counts = {}
+    for _, row in analyst_df.iterrows():
+        if row['_is_fatal']:
+            a = row['_analyst']
+            if a:
+                fatal_counts[a] = fatal_counts.get(a, 0) + 1
+
+    if not fatal_counts:
+        st.markdown('<p style="color:#6b7280;font-size:12px;">No fatal errors found.</p>', unsafe_allow_html=True)
+        return
+
+    sorted_fc = sorted(fatal_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    max_c = sorted_fc[0][1] if sorted_fc else 1
+    html = '<div class="bar-chart">'
+    for analyst, count in sorted_fc:
+        pct = (count / max_c * 100) if max_c else 0
+        html += f'''<div class="bar-row">
+          <div class="bar-label">{analyst}</div>
+          <div class="bar-track"><div class="bar-fill bar-fill-fatal" style="width:{pct}%"></div></div>
+          <div class="bar-value">{count}</div>
+        </div>'''
+    html += '</div>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_analyst_table(analyst_df):
+    if len(analyst_df) == 0:
+        return
+
+    perf = []
+    for analyst, g in analyst_df.groupby('_analyst'):
+        if not analyst:
+            continue
+        aa = len(g)
+        af = int(g['_is_fatal'].sum())
+        an = int(g['_is_nonfatal'].sum())
+        acc = g['_accuracy'].mean()
+        perf.append({'analyst': analyst, 'org': g['_org'].mode().iloc[0] if not g['_org'].mode().empty else '',
+                     'audited': aa, 'accuracy': acc, 'fatal': af, 'nonfatal': an})
+
+    if not perf:
+        return
+
+    html = '''<table class="data-table">
+      <thead><tr><th>Analyst</th><th>Org</th><th>Audited</th><th>Accuracy</th><th>Fatal</th><th>Non-Fatal</th></tr></thead><tbody>'''
+    for a in sorted(perf, key=lambda x: x['accuracy']):
+        acc_cls = rag_text_class(a['accuracy'])
+        html += f'''<tr>
+          <td>{a['analyst']}</td>
+          <td>{a['org']}</td>
+          <td>{a['audited']}</td>
+          <td class="{acc_cls}">{fmt_pct(a['accuracy'])}</td>
+          <td>{a['fatal']}</td>
+          <td>{a['nonfatal']}</td>
+        </tr>'''
+    html += '</tbody></table>'
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# ============================================================
 # MAIN DASHBOARD
 # ============================================================
 def main():
-    # Custom CSS
-    st.markdown("""
-    <style>
-        .block-container { padding-top: 2rem; max-width: 1200px; }
-        div[data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 700 !important; }
-        div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; text-transform: uppercase; }
-        .stDataFrame { font-size: 0.85rem !important; }
-        h1 { font-size: 1.5rem !important; }
-        h2 { font-size: 1.2rem !important; }
-        h3 { font-size: 1rem !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.title("📊 FinCom QC Dashboard")
-    st.caption(f"Live dashboard • Last refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    inject_css()
 
     # Load data
     files, source, prefix = load_data_from_s3()
@@ -603,276 +866,155 @@ def main():
 
     if not files:
         st.error("❌ No data files found!")
-        st.info("""
-        **Setup required:** Upload CSV files to S3 bucket or place them in the `data/` folder.
-        
-        Expected files: `Fincom_Process.csv`, `Fincom_Analyst.csv`, `Disputes.csv`, 
-        `Rectification.csv`, `IVOC.csv`, `Defect Reduction.csv`
-        """)
+        st.info("Upload CSV files to S3 bucket `fincom-qc-data` or place them in the `data/` folder.")
         return
-
-    st.sidebar.success(f"📡 Data: **{source}**")
-    st.sidebar.info(f"Files: {len(files)} | Prefix: {prefix or 'local'}")
 
     # Parse files
     process_df = parse_audit_file(find_file(files, "process"))
     analyst_df = parse_audit_file(find_file(files, "analyst"))
-    disputes_df = parse_disputes(find_file(files, "dispute"))
-    rect_df = parse_rectification(find_file(files, "rectification"))
-    ivoc_df = parse_ivoc(find_file(files, "ivoc"))
-    defred_df = parse_defect_reduction(find_file(files, "defect", "reduction"))
-
-    # Previous month
+    disputes_df = parse_tracker_file(find_file(files, "dispute"), sla_days=7, tracker_type='disputes')
+    rect_df = parse_tracker_file(find_file(files, "rectification"), sla_days=5, tracker_type='rect')
+    ivoc_df = parse_tracker_file(find_file(files, "ivoc"), sla_days=5, tracker_type='ivoc')
+    defred_df = parse_tracker_file(find_file(files, "defect", "reduction"), sla_days=5, tracker_type='defred')
     prev_process_df = parse_audit_file(find_file(prev_files, "process")) if prev_files else pd.DataFrame()
 
     if len(process_df) == 0:
         st.error("❌ Could not parse Fincom_Process.csv!")
-        st.info("Make sure the file has columns: Analyst, Accuracy %, Audit Date, Case Number")
+        st.info(f"Data source: {source} | Files: {list(files.keys())}")
         return
 
-    # ── SIDEBAR FILTERS ──
-    st.sidebar.header("🔍 Filters")
+    # ── TITLE + DATA SOURCE ──
+    st.markdown(f'''
+    <div class="dashboard-title">📊 FinCom QC Dashboard — General Apr 2026</div>
+    <div class="dashboard-sub">Data: {source} | {len(files)} files loaded | Last refreshed: {datetime.now().strftime("%Y-%m-%d %H:%M")}</div>
+    ''', unsafe_allow_html=True)
 
+    # ── FILTER BAR ──
     orgs = sorted([o for o in process_df['_org'].unique() if o and o != 'Unknown'])
-    selected_orgs = st.sidebar.multiselect("Org", orgs, default=orgs)
-
     analysts = sorted([a for a in process_df['_analyst'].unique() if a])
-    selected_analysts = st.sidebar.multiselect("Analyst", analysts, default=analysts)
-
+    categories = sorted([c for c in process_df['_category'].unique() if c])
     weeks = sorted([w for w in process_df['_week'].unique() if w],
-                   key=lambda w: int(w.replace('W', '')) if w and w.startswith('W') else 0)
-    selected_weeks = st.sidebar.multiselect("Week", weeks, default=weeks)
+                   key=lambda w: int(w.replace('W', '')) if w.startswith('W') else 0)
+    topics = sorted([t for t in process_df['_topic'].unique() if t])
+
+    with st.container():
+        fc1, fc2, fc3, fc4, fc5 = st.columns(5)
+        with fc1:
+            sel_orgs = st.multiselect("Org", orgs, default=orgs, key="f_org")
+        with fc2:
+            sel_analysts = st.multiselect("Analyst", analysts, default=analysts, key="f_analyst")
+        with fc3:
+            sel_categories = st.multiselect("Category", categories, default=categories, key="f_cat")
+        with fc4:
+            sel_weeks = st.multiselect("Week", weeks, default=weeks, key="f_week")
+        with fc5:
+            sel_topics = st.multiselect("Topic", topics, default=topics, key="f_topic")
 
     # Apply filters
-    mask = (process_df['_org'].isin(selected_orgs) &
-            process_df['_analyst'].isin(selected_analysts) &
-            process_df['_week'].isin(selected_weeks))
+    mask = pd.Series(True, index=process_df.index)
+    if sel_orgs:
+        mask &= process_df['_org'].isin(sel_orgs)
+    if sel_analysts:
+        mask &= process_df['_analyst'].isin(sel_analysts)
+    if sel_categories:
+        mask &= process_df['_category'].isin(sel_categories)
+    if sel_weeks:
+        mask &= process_df['_week'].isin(sel_weeks)
+    if sel_topics:
+        mask &= process_df['_topic'].isin(sel_topics)
     filtered_df = process_df[mask]
 
-    # Also filter analyst df
+    # Filter analyst df too
     if len(analyst_df) > 0:
-        analyst_mask = (analyst_df['_org'].isin(selected_orgs) &
-                       analyst_df['_analyst'].isin(selected_analysts))
-        filtered_analyst = analyst_df[analyst_mask]
+        a_mask = pd.Series(True, index=analyst_df.index)
+        if sel_orgs:
+            a_mask &= analyst_df['_org'].isin(sel_orgs)
+        if sel_analysts:
+            a_mask &= analyst_df['_analyst'].isin(sel_analysts)
+        filtered_analyst = analyst_df[a_mask]
     else:
         filtered_analyst = pd.DataFrame()
 
     # ══════════════════════════════════════════════════════════
     # KPI ROW
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
-
     total_audited = len(filtered_df)
-    accuracy_avg = round(filtered_df['_accuracy'].mean(), 2) if total_audited else 0
+    accuracy_avg = round(filtered_df['_accuracy'].mean(), 1) if total_audited else 0
     inap_count = int(filtered_df['_fatal_inap'].sum())
     conf_count = int(filtered_df['_fatal_conf'].sum())
     fatal_count = inap_count + conf_count
     defects_total = int(filtered_df['_missed'].sum())
 
-    with col1:
-        st.metric("📋 Cases Audited", total_audited)
-    with col2:
-        color = "🟢" if accuracy_avg >= 95 else ("🟡" if accuracy_avg >= 90 else "🔴")
-        st.metric("🎯 Accuracy", f"{accuracy_avg:.1f}%", delta=color)
-    with col3:
-        st.metric("⚠️ Fatal Errors", fatal_count,
-                  help=f"Inap Resolution: {inap_count} | Confidentiality: {conf_count}")
-    with col4:
-        rate = f"{defects_total/total_audited*100:.1f}%" if total_audited else "0%"
-        st.metric("🔍 Total Defects", defects_total, delta=f"Rate: {rate}", delta_color="inverse")
+    render_kpi_row(total_audited, accuracy_avg, fatal_count, inap_count, conf_count, defects_total)
 
     # ══════════════════════════════════════════════════════════
-    # STATUS CARDS ROW
+    # STATUS CARDS
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("📋 Tracker Status")
-    sc1, sc2, sc3, sc4 = st.columns(4)
-
-    def status_card(container, title, df, status_col='_status'):
-        with container:
-            st.markdown(f"**{title}**")
-            if df is not None and len(df) > 0:
-                st.caption(f"Total: {len(df)}")
-                counts = df[status_col].value_counts()
-                for status, count in counts.items():
-                    st.write(f"• {status}: **{count}**")
-                # SLA
-                if '_sla' in df.columns:
-                    sla_met = (df['_sla'] == 'SLA Met').sum()
-                    sla_total = len(df)
-                    sla_pct = round(sla_met / sla_total * 100, 1) if sla_total else 0
-                    color = "🟢" if sla_pct >= 100 else "🔴"
-                    st.caption(f"{color} SLA: {sla_met}/{sla_total} ({sla_pct}%)")
-            else:
-                st.caption("No data")
-
-    status_card(sc1, "Disputes", disputes_df, '_category')
-    status_card(sc2, "Rectification", rect_df, '_status')
-    status_card(sc3, "IVOC", ivoc_df, '_status')
-    status_card(sc4, "Defect Reduction", defred_df, '_status')
+    st.markdown('<div class="section-title" style="margin-top:16px;">📋 Tracker Status</div>', unsafe_allow_html=True)
+    render_status_cards(disputes_df, rect_df, ivoc_df, defred_df)
 
     # ══════════════════════════════════════════════════════════
-    # WEEK OVER WEEK + MONTH OVER MONTH
+    # WoW + MoM (side by side)
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    wow_col, mom_col = st.columns(2)
-
-    with wow_col:
-        st.subheader("📈 Week over Week")
-        if total_audited > 0:
-            wow_data = []
-            wk_groups = filtered_df.groupby('_week')
-            for w in sorted([w for w in wk_groups.groups.keys() if w],
-                           key=lambda w: int(w.replace('W', '')) if w.startswith('W') else 0):
-                g = wk_groups.get_group(w)
-                wow_data.append({
-                    'Week': w,
-                    'Audited': len(g),
-                    'Fatal': int(g['_fatal_inap'].sum()) + int(g['_fatal_conf'].sum()),
-                    'Non-Fatal': int(g['_is_nonfatal'].sum()),
-                })
-            if wow_data:
-                wow_df = pd.DataFrame(wow_data)
-                st.dataframe(wow_df, use_container_width=True, hide_index=True)
-                st.bar_chart(wow_df.set_index('Week')[['Audited', 'Fatal', 'Non-Fatal']])
-            else:
-                st.info("No weekly data available.")
-        else:
-            st.info("No data for WoW.")
-
-    with mom_col:
-        st.subheader("📊 Month over Month")
-        if len(prev_process_df) > 0:
-            prev_aud = len(prev_process_df)
-            prev_fat = int(prev_process_df['_fatal_inap'].sum()) + int(prev_process_df['_fatal_conf'].sum())
-            prev_acc = round(prev_process_df['_accuracy'].mean(), 2)
-
-            mom_data = {
-                'Metric': ['Cases Audited', 'Fatal Errors', 'Accuracy'],
-                'Previous': [prev_aud, prev_fat, f"{prev_acc:.1f}%"],
-                'Current': [total_audited, fatal_count, f"{accuracy_avg:.1f}%"],
-                'Delta': [total_audited - prev_aud, fatal_count - prev_fat,
-                          f"{accuracy_avg - prev_acc:+.1f}%"],
-            }
-            st.dataframe(pd.DataFrame(mom_data), use_container_width=True, hide_index=True)
-        else:
-            st.info("Previous month data not available for MoM comparison.")
+    col_wow, col_mom = st.columns(2)
+    with col_wow:
+        st.markdown('<div class="section-box"><div class="section-title">📈 Week over Week</div>', unsafe_allow_html=True)
+        render_wow(filtered_df)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with col_mom:
+        st.markdown('<div class="section-box"><div class="section-title">📊 Month over Month</div>', unsafe_allow_html=True)
+        render_mom(filtered_df, prev_process_df)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
     # TOP DEFECT PARAMETERS
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("📊 Top Defect Parameters")
-
-    counter = Counter()
-    for hits in filtered_df['_param_hits']:
-        for p in hits:
-            counter[p] += 1
-
-    if counter:
-        defect_data = pd.DataFrame(counter.most_common(), columns=['Parameter', 'Count'])
-        st.bar_chart(defect_data.set_index('Parameter'))
-    else:
-        st.info("No defects found with current filters.")
+    st.markdown('<div class="section-box"><div class="section-title">📊 Top Defect Parameters</div>', unsafe_allow_html=True)
+    render_top_defects(filtered_df)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
-    # ORG SCORECARD + FATAL BY ANALYST
+    # ORG SCORECARD
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    org_col, fba_col = st.columns(2)
-
-    with org_col:
-        st.subheader("🏢 Org Scorecard")
-        org_data = []
-        for org, g in filtered_df.groupby('_org'):
-            if not org:
-                continue
-            oa = len(g)
-            of = int(g['_fatal_inap'].sum()) + int(g['_fatal_conf'].sum())
-            on = int(g['_is_nonfatal'].sum())
-            org_data.append({
-                'Org': org,
-                'Audited': oa,
-                'Accuracy': f"{g['_accuracy'].mean():.1f}%",
-                'Fatal': of,
-                'Non-Fatal': on,
-                'Defect Rate': f"{(of + on) / oa * 100:.1f}%" if oa else "0%",
-            })
-        if org_data:
-            st.dataframe(pd.DataFrame(org_data), use_container_width=True, hide_index=True)
-
-    with fba_col:
-        st.subheader("⚠️ Fatal Errors by Analyst")
-        if len(filtered_analyst) > 0:
-            fa_copy = filtered_analyst.copy()
-            fa_copy['_fatal_marks'] = fa_copy['_fatal_inap'].astype(int) + fa_copy['_fatal_conf'].astype(int)
-            fba = (fa_copy[fa_copy['_fatal_marks'] > 0]
-                   .groupby('_analyst')['_fatal_marks'].sum()
-                   .sort_values(ascending=False).head(10))
-            if not fba.empty:
-                st.bar_chart(fba)
-            else:
-                st.info("No fatal errors in analyst data.")
-        else:
-            st.info("Analyst file not loaded.")
+    st.markdown('<div class="section-box"><div class="section-title">🏢 Org Scorecard</div>', unsafe_allow_html=True)
+    render_org_scorecard(filtered_df)
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
-    # ANALYST PERFORMANCE TABLE
+    # FATAL BY ANALYST + ANALYST PERFORMANCE (side by side)
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("👤 Analyst Performance")
-
-    if len(filtered_analyst) > 0:
-        analyst_perf = []
-        for analyst, g in filtered_analyst.groupby('_analyst'):
-            if not analyst:
-                continue
-            aa = len(g)
-            af = int(g['_fatal_inap'].sum()) + int(g['_fatal_conf'].sum())
-            an = int(g['_is_nonfatal'].sum())
-            analyst_perf.append({
-                'Analyst': analyst,
-                'Org': g['_org'].mode().iloc[0] if not g['_org'].mode().empty else '',
-                'Audited': aa,
-                'Accuracy': f"{g['_accuracy'].mean():.1f}%",
-                'Fatal': af,
-                'Non-Fatal': an,
-            })
-        if analyst_perf:
-            st.dataframe(pd.DataFrame(analyst_perf).sort_values('Accuracy'),
-                         use_container_width=True, hide_index=True)
-    else:
-        st.info("Analyst file not loaded.")
+    col_fba, col_apt = st.columns(2)
+    with col_fba:
+        st.markdown('<div class="section-box"><div class="section-title">⚠️ Fatal Errors by Analyst</div>', unsafe_allow_html=True)
+        render_fatal_by_analyst(filtered_analyst)
+        st.markdown('</div>', unsafe_allow_html=True)
+    with col_apt:
+        st.markdown('<div class="section-box"><div class="section-title">👤 Analyst Performance</div>', unsafe_allow_html=True)
+        render_analyst_table(filtered_analyst)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════
-    # CASE-LEVEL DETAIL
+    # CASE-LEVEL DRILL-DOWN
     # ══════════════════════════════════════════════════════════
-    st.markdown("---")
-    st.subheader("🔎 Case-Level Detail")
+    with st.expander("🔎 Case-Level Detail (click to expand)"):
+        if total_audited > 0:
+            detail = filtered_df[['_case', '_analyst', '_org', '_category', '_topic', '_week',
+                                  '_accuracy', '_missed', '_is_fatal', '_is_nonfatal', '_comment']].copy()
+            detail.columns = ['Case', 'Analyst', 'Org', 'Category', 'Topic', 'Week',
+                              'Accuracy', 'Missed', 'Fatal', 'Non-Fatal', 'Comment']
+            st.dataframe(detail, use_container_width=True, hide_index=True, height=400)
 
-    with st.expander("View all cases (click to expand)"):
-        detail_cols = ['_case', '_analyst', '_org', '_accuracy', '_missed', '_is_fatal', '_is_nonfatal']
-        available_cols = [c for c in detail_cols if c in filtered_df.columns]
-        display_df = filtered_df[available_cols].copy()
-        col_map = {'_case': 'Case', '_analyst': 'Analyst', '_org': 'Org',
-                   '_accuracy': 'Accuracy', '_missed': 'Missed Params',
-                   '_is_fatal': 'Fatal', '_is_nonfatal': 'Non-Fatal'}
-        display_df.columns = [col_map.get(c, c) for c in display_df.columns]
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-    # ══════════════════════════════════════════════════════════
-    # SIDEBAR CONTROLS
-    # ══════════════════════════════════════════════════════════
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🔄 Refresh Data from S3"):
-        st.cache_data.clear()
-        st.rerun()
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📡 Data Files")
-    for name in sorted(files.keys()):
-        st.sidebar.caption(f"📄 {name}")
+    # ── SIDEBAR: Refresh button ──
+    with st.sidebar:
+        st.markdown("### ⚙️ Controls")
+        if st.button("🔄 Refresh Data"):
+            st.cache_data.clear()
+            st.rerun()
+        st.markdown("---")
+        st.markdown(f"**Source:** {source}")
+        st.markdown(f"**Files:** {len(files)}")
+        for name in sorted(files.keys()):
+            st.caption(f"📄 {name}")
 
 
 if __name__ == "__main__":

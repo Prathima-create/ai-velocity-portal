@@ -81,7 +81,8 @@ a:hover { color: var(--accent-tertiary); }
 }
 .nav-container { max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
 .nav-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
-.logo-img { height: 36px; width: auto; border-radius: 4px; }
+.logo-banner { height: 48px; width: auto; max-width: 220px; object-fit: contain; }
+.navbar.scrolled .logo-banner { height: 40px; }
 .logo-text { font-size: 20px; font-weight: 800; color: var(--text-primary); }
 .logo-text .accent { background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 .logo-badge { font-size: 10px; font-weight: 700; background: var(--accent-primary); color: white; padding: 2px 6px; border-radius: 4px; }

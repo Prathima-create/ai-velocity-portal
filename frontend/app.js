@@ -34,6 +34,7 @@ async function loadDashboard() {
         populateFilters(leaders, procs);
         initFilterListeners();
         initScrollAnimations();
+    initCollapsible();
         showToast(`✅ Loaded ${subs.length} submissions`);
     } catch (err) {
         console.error(err);
@@ -235,13 +236,12 @@ function renderCompletedTable(containerId, items) {
     const c = document.getElementById(containerId); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No projects in this category</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Project</th><th>Owner</th><th>Process</th><th>Leader</th><th>Impact</th><th>Stage</th><th>Replicable</th></tr></thead>
+        <thead><tr><th>#</th><th>Project</th><th>Process</th><th>Leader</th><th>Impact</th><th>Stage</th><th>Replicable</th></tr></thead>
         <tbody>${items.map((w, i) => {
             const stageLabel = w.implementation_stage ? w.implementation_stage.replace('Completed (','').replace('In Progress (','').replace(')','') : 'Production';
             return `<tr class="data-row clickable" onclick="openDetail(${w.id})">
                 <td>${i+1}</td>
                 <td class="col-name">${w.project_name || 'Untitled'}</td>
-                <td>${ownerName(w)}</td>
                 <td class="col-process">${trunc(w.process, 25)}</td>
                 <td><span class="leader-chip">${w.leader}</span></td>
                 <td class="col-impact">${trunc(w.impact, 50)}</td>
@@ -257,11 +257,10 @@ function renderInProgressList(items) {
     const c = document.getElementById('inprogressList'); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No in-progress items</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Submitter</th><th>Process</th><th>Leader</th><th>Status</th><th>Problem</th><th>Proposed Solution</th><th>Timeline</th><th>SDE</th></tr></thead>
+        <thead><tr><th>#</th><th>Process</th><th>Leader</th><th>Status</th><th>Problem</th><th>Proposed Solution</th><th>Timeline</th><th>SDE</th></tr></thead>
         <tbody>${items.map((it, i) => `
             <tr class="data-row clickable" onclick="openDetail(${it.id})">
                 <td>${i+1}</td>
-                <td>${it.name || 'Anonymous'}</td>
                 <td class="col-process">${trunc(it.process, 22)}</td>
                 <td><span class="leader-chip">${it.leader}</span></td>
                 <td><span class="status-pill status-${it.status.toLowerCase().replace(' ','-')}">${it.status}</span></td>
@@ -278,11 +277,10 @@ function renderIdeasList(items) {
     const c = document.getElementById('ideasList'); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No ideas match your filters</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Submitter</th><th>Process</th><th>Leader</th><th>Problem Statement</th><th>Proposed AI Solution</th><th>Effort</th><th>Tools</th><th>SDE</th></tr></thead>
+        <thead><tr><th>#</th><th>Process</th><th>Leader</th><th>Problem Statement</th><th>Proposed AI Solution</th><th>Effort</th><th>Tools</th><th>SDE</th></tr></thead>
         <tbody>${items.map((it, i) => `
             <tr class="data-row clickable" onclick="openDetail(${it.id})">
                 <td>${i+1}</td>
-                <td>${it.name || 'Anonymous'}</td>
                 <td class="col-process">${trunc(it.process, 22)}</td>
                 <td><span class="leader-chip">${it.leader}</span></td>
                 <td class="col-problem">${trunc(it.problem_statement, 70)}</td>
@@ -310,12 +308,11 @@ async function loadDuplicates() {
             <div class="dup-group">
                 <h4 class="dup-group-title">⚠️ Group ${gi+1}: "${trunc(group.match_key, 50)}" — ${group.count} similar items</h4>
                 <table class="data-table">
-                    <thead><tr><th>#</th><th>Project / Problem</th><th>Submitter</th><th>Process</th><th>Type</th><th>Leader</th><th>Created</th></tr></thead>
+                    <thead><tr><th>#</th><th>Project / Problem</th><th>Process</th><th>Type</th><th>Leader</th><th>Created</th></tr></thead>
                     <tbody>${group.items.map((it, i) => `
                         <tr class="data-row clickable" onclick="openDetail(${it.id})">
                             <td>${i+1}</td>
                             <td class="col-name">${it.project_name || trunc(it.problem_statement, 50) || 'N/A'}</td>
-                            <td>${ownerName(it)}</td>
                             <td class="col-process">${trunc(it.process, 25)}</td>
                             <td><span class="status-pill status-${it.category === 'ai_win' ? 'completed' : 'pending'}">${it.category === 'ai_win' ? '🏆 Win' : it.category === 'replicate' ? '🔁 Repl' : '💡 Idea'}</span></td>
                             <td><span class="leader-chip">${it.leader}</span></td>
@@ -465,3 +462,42 @@ sty.textContent = '.kpi-card.visible,.chart-card.visible,.leader-table.visible,.
 document.head.appendChild(sty);
 
 console.log('%c 🚀 AI Velocity Portal v3.0 %c Leaderboard Mode ', 'background:#6366f1;color:white;padding:8px 16px;border-radius:4px;font-weight:bold;', 'background:#10b981;color:white;padding:8px 12px;border-radius:4px;');
+
+// ─── Collapsible Sections ──────────────────────────────────────────────────────
+function initCollapsible() {
+    document.querySelectorAll('.subsection-title, .section-header .section-title').forEach(el => {
+        // Don't make the main dashboard KPI section collapsible
+        const section = el.closest('.section, .subsection');
+        if (!section || section.id === 'dashboard') return;
+        
+        el.style.cursor = 'pointer';
+        el.style.userSelect = 'none';
+        
+        // Add toggle arrow
+        const arrow = document.createElement('span');
+        arrow.className = 'collapse-arrow';
+        arrow.textContent = ' ▾';
+        arrow.style.cssText = 'transition:transform 0.3s;display:inline-block;margin-left:8px;font-size:14px;color:var(--text-muted);';
+        el.appendChild(arrow);
+        
+        el.addEventListener('click', () => {
+            const content = el.closest('.subsection') ? 
+                el.nextElementSibling : 
+                el.closest('.section-header')?.nextElementSibling;
+            if (!content) return;
+            
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? '' : 'none';
+            arrow.style.transform = isHidden ? '' : 'rotate(-90deg)';
+            
+            // Also hide subsequent siblings until next section-header
+            if (!el.closest('.subsection')) {
+                let sib = content.nextElementSibling;
+                while (sib && !sib.classList.contains('section-header')) {
+                    sib.style.display = isHidden ? '' : 'none';
+                    sib = sib.nextElementSibling;
+                }
+            }
+        });
+    });
+}

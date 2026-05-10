@@ -206,6 +206,35 @@ TOOL_SUGGESTIONS = {
     "payment": ["Python Automation", "Amazon Quick Suite Flow", "RPA Integration"],
 }
 
+# ─── Person ID Resolution ─────────────────────────────────────────────────────
+import json as _json
+
+_PERSON_ID_MAPPING = {}
+_person_mapping_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "person_id_mapping.json")
+if os.path.exists(_person_mapping_path):
+    try:
+        with open(_person_mapping_path, 'r', encoding='utf-8') as _f:
+            _PERSON_ID_MAPPING = _json.load(_f)
+    except Exception:
+        pass
+
+def resolve_person_name(row):
+    """Resolve person name from CSV row. Priority: Your name > Created By > person_id_mapping > NameStringId"""
+    # Try direct name fields first
+    for field in ("Your name", "Created By", "Name", "Title"):
+        val = row.get(field, "").strip()
+        if val and not val.isdigit():
+            return val
+    # Try resolving NameStringId via mapping
+    nid = row.get("NameStringId", "").strip() or row.get("NameId", "").strip()
+    if nid and nid in _PERSON_ID_MAPPING:
+        return _PERSON_ID_MAPPING[nid]
+    # Return the numeric ID as fallback (shows as "ID: 74")
+    if nid:
+        return nid
+    return ""
+
+
 # ─── CSV Parsing ──────────────────────────────────────────────────────────────
 def get_field(row, *names):
     """Get a field value by trying multiple possible column names (handles both manual CSV and REST API CSV)"""
@@ -325,8 +354,8 @@ def load_submissions():
             # Parse execution plan
             execution_plan = get_field(row, "How do you plan to execute this idea?", "How_x0020_do_x0020_you_x0020_pla")
             
-            # Build submission object
-            name = get_field(row, "Name", "Your name", "Title")
+            # Build submission object — resolve person name from NameStringId
+            name = resolve_person_name(row)
             process = get_field(row, "Process", "Process you are in", "Select your process", "Select_x0020_your_x0020_process", "Process_x0020_you_x0020_are_x002")
             sub_process = get_field(row, "Sub Process", "Sub Process you are in", "Select your Sub process", "Select_x0020_your_x0020_Sub_x002", "Sub_x0020_Process_x0020_you_x002")
             

@@ -236,12 +236,13 @@ function renderCompletedTable(containerId, items) {
     const c = document.getElementById(containerId); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No projects in this category</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Project</th><th>Process</th><th>Leader</th><th>Impact</th><th>Stage</th><th>Replicable</th></tr></thead>
+        <thead><tr><th>#</th><th>Project</th><th>Owner</th><th>Process</th><th>Leader</th><th>Impact</th><th>Stage</th><th>Replicable</th></tr></thead>
         <tbody>${items.map((w, i) => {
             const stageLabel = w.implementation_stage ? w.implementation_stage.replace('Completed (','').replace('In Progress (','').replace(')','') : 'Production';
             return `<tr class="data-row clickable" onclick="openDetail(${w.id})">
                 <td>${i+1}</td>
                 <td class="col-name">${w.project_name || 'Untitled'}</td>
+                <td class="col-owner">${w.name || '—'}</td>
                 <td class="col-process">${trunc(w.process, 25)}</td>
                 <td><span class="leader-chip">${w.leader}</span></td>
                 <td class="col-impact">${trunc(w.impact, 50)}</td>
@@ -257,10 +258,11 @@ function renderInProgressList(items) {
     const c = document.getElementById('inprogressList'); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No in-progress items</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Process</th><th>Leader</th><th>Status</th><th>Problem</th><th>Proposed Solution</th><th>Timeline</th><th>SDE</th></tr></thead>
+        <thead><tr><th>#</th><th>Submitter</th><th>Process</th><th>Leader</th><th>Status</th><th>Problem</th><th>Proposed Solution</th><th>Timeline</th><th>SDE</th></tr></thead>
         <tbody>${items.map((it, i) => `
             <tr class="data-row clickable" onclick="openDetail(${it.id})">
                 <td>${i+1}</td>
+                <td class="col-owner">${it.name || '—'}</td>
                 <td class="col-process">${trunc(it.process, 22)}</td>
                 <td><span class="leader-chip">${it.leader}</span></td>
                 <td><span class="status-pill status-${it.status.toLowerCase().replace(' ','-')}">${it.status}</span></td>
@@ -277,10 +279,11 @@ function renderIdeasList(items) {
     const c = document.getElementById('ideasList'); if (!c) return;
     if (!items.length) { c.innerHTML = '<div class="empty-state">No ideas match your filters</div>'; return; }
     c.innerHTML = `<table class="data-table">
-        <thead><tr><th>#</th><th>Process</th><th>Leader</th><th>Problem Statement</th><th>Proposed AI Solution</th><th>Effort</th><th>Tools</th><th>SDE</th></tr></thead>
+        <thead><tr><th>#</th><th>Submitter</th><th>Process</th><th>Leader</th><th>Problem Statement</th><th>Proposed AI Solution</th><th>Effort</th><th>Tools</th><th>SDE</th></tr></thead>
         <tbody>${items.map((it, i) => `
             <tr class="data-row clickable" onclick="openDetail(${it.id})">
                 <td>${i+1}</td>
+                <td class="col-owner">${it.name || '—'}</td>
                 <td class="col-process">${trunc(it.process, 22)}</td>
                 <td><span class="leader-chip">${it.leader}</span></td>
                 <td class="col-problem">${trunc(it.problem_statement, 70)}</td>

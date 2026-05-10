@@ -81,7 +81,7 @@ a:hover { color: var(--accent-tertiary); }
 }
 .nav-container { max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
 .nav-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; }
-.logo-banner { height: 48px; width: auto; max-width: 220px; object-fit: contain; }
+.logo-banner { height: 56px; width: auto; max-width: 320px; object-fit: contain; }
 .navbar.scrolled .logo-banner { height: 40px; }
 .logo-text { font-size: 20px; font-weight: 800; color: var(--text-primary); }
 .logo-text .accent { background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
@@ -539,6 +539,7 @@ a:hover { color: var(--accent-tertiary); }
 .data-table .col-problem { max-width: 250px; font-size: 11px; line-height: 1.4; }
 .data-table .col-solution { max-width: 200px; font-size: 11px; line-height: 1.4; color: var(--text-muted); }
 .data-table .col-tools { white-space: nowrap; }
+.data-table .col-owner { max-width: 150px; font-weight: 600; color: var(--text-primary); font-size: 11px; white-space: nowrap; }
 .data-table .col-sde { font-size: 11px; color: var(--accent-tertiary); white-space: nowrap; }
 
 /* Leader Chip */

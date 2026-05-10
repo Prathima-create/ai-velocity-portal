@@ -312,7 +312,7 @@ async function loadDuplicates() {
                 <table class="data-table">
                     <thead><tr><th>#</th><th>Project / Problem</th><th>Submitter</th><th>Process</th><th>Type</th><th>Leader</th><th>Created</th></tr></thead>
                     <tbody>${group.items.map((it, i) => `
-                        <tr class="data-row">
+                        <tr class="data-row clickable" onclick="openDetail(${it.id})">
                             <td>${i+1}</td>
                             <td class="col-name">${it.project_name || trunc(it.problem_statement, 50) || 'N/A'}</td>
                             <td>${it.created_by || it.name || 'Anonymous'}</td>

@@ -241,7 +241,7 @@ function renderCompletedTable(containerId, items) {
             return `<tr class="data-row clickable" onclick="openDetail(${w.id})">
                 <td>${i+1}</td>
                 <td class="col-name">${w.project_name || 'Untitled'}</td>
-                <td>${w.created_by || w.name || w.project_owner}</td>
+                <td>${ownerName(w)}</td>
                 <td class="col-process">${trunc(w.process, 25)}</td>
                 <td><span class="leader-chip">${w.leader}</span></td>
                 <td class="col-impact">${trunc(w.impact, 50)}</td>
@@ -315,7 +315,7 @@ async function loadDuplicates() {
                         <tr class="data-row clickable" onclick="openDetail(${it.id})">
                             <td>${i+1}</td>
                             <td class="col-name">${it.project_name || trunc(it.problem_statement, 50) || 'N/A'}</td>
-                            <td>${it.created_by || it.name || 'Anonymous'}</td>
+                            <td>${ownerName(it)}</td>
                             <td class="col-process">${trunc(it.process, 25)}</td>
                             <td><span class="status-pill status-${it.category === 'ai_win' ? 'completed' : 'pending'}">${it.category === 'ai_win' ? '🏆 Win' : it.category === 'replicate' ? '🔁 Repl' : '💡 Idea'}</span></td>
                             <td><span class="leader-chip">${it.leader}</span></td>
@@ -407,6 +407,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 function trunc(s, l) { return !s ? '' : s.length > l ? s.substring(0, l) + '...' : s; }
+function ownerName(item) { 
+    // Show resolved name, hide numeric IDs (unresolved Person field IDs)
+    const candidates = [item.created_by, item.name, item.project_owner];
+    for (const c of candidates) {
+        if (c && !/^\d+$/.test(c.trim())) return c;
+    }
+    return '—';
+}
 function debounce(fn, d) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), d); }; }
 function showToast(msg) { const t = document.getElementById('toast'), m = document.getElementById('toastMessage'); if (!t||!m) return; m.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
 

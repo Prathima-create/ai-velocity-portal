@@ -261,14 +261,16 @@ def sync_via_edge():
                 // Now try to resolve Person field IDs to names
                 // Collect ALL unique person IDs from manager, tech POC, support team, your name
                 var allIds = new Set();
-                // Also detect which property names actually exist for Support Team
-                var supportIdKey = null;
-                var nameIdKey = null;
+                // Detect actual property names for person ID fields
+                var supportIdKey = null, nameIdKey = null, projOwnerIdKey = null, authorIdKey = null, projTeamIdKey = null;
                 if (items.length > 0) {
                     var keys = Object.keys(items[0]);
                     keys.forEach(function(k) {
                         if (k.indexOf('Support') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) supportIdKey = k;
                         if (k.indexOf('Your_x0020_name') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) nameIdKey = k;
+                        if (k.indexOf('Project_x0020_Owner') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) projOwnerIdKey = k;
+                        if (k === 'AuthorId') authorIdKey = k;
+                        if (k.indexOf('Project_x0020_Team') >= 0 && k.indexOf('Id') >= 0 && k.indexOf('String') < 0) projTeamIdKey = k;
                     });
                 }
                 items.forEach(function(i) {
@@ -276,6 +278,11 @@ def sync_via_edge():
                      i.Tech_x0020_team_x0020_POCId, i.TechteamPOCId];
                     if (supportIdKey) ids.push(i[supportIdKey]);
                     if (nameIdKey) ids.push(i[nameIdKey]);
+                    if (projOwnerIdKey) ids.push(i[projOwnerIdKey]);
+                    if (authorIdKey) ids.push(i[authorIdKey]);
+                    if (projTeamIdKey) ids.push(i[projTeamIdKey]);
+                    // Also get NameId directly
+                    if (i.NameId) ids.push(i.NameId);
                     ids.forEach(function(id) {
                         if (id) allIds.add(id);
                     });
@@ -300,8 +307,17 @@ def sync_via_edge():
                     if (techId && userCache[techId]) item['Tech team POC'] = userCache[techId];
                     var suppId = supportIdKey ? item[supportIdKey] : null;
                     if (suppId && userCache[suppId]) item['Support Team/ Partnership Team'] = userCache[suppId];
-                    var nameId = nameIdKey ? item[nameIdKey] : null;
-                    if (nameId && userCache[nameId]) item['Your name'] = userCache[nameId];
+                    // Your name (submitter)
+                    var ynId = nameIdKey ? item[nameIdKey] : (item.NameId || null);
+                    if (ynId && userCache[ynId]) item['Your name'] = userCache[ynId];
+                    // Project Owner/Lead
+                    var poId = projOwnerIdKey ? item[projOwnerIdKey] : null;
+                    if (poId && userCache[poId]) item['Project Owner/Lead'] = userCache[poId];
+                    // Created By (Author)
+                    if (item.AuthorId && userCache[item.AuthorId]) item['Created By'] = userCache[item.AuthorId];
+                    // Project Team
+                    var ptId = projTeamIdKey ? item[projTeamIdKey] : null;
+                    if (ptId && userCache[ptId]) item['Project Team'] = userCache[ptId];
                 });
                 cb(JSON.stringify(items));
             } catch(e) { cb(JSON.stringify({error: e.message})); }

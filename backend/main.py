@@ -287,7 +287,7 @@ def load_submissions():
     with open(csv_path, 'r', encoding='utf-8-sig', errors='replace') as f:
         reader = csv.DictReader(f)
         for idx, row in enumerate(reader):
-            submission_type = get_field(row, "What would you like to do", "What_x0020_would_x0020_you_x0020")
+            submission_type = get_field(row, "What would you like to do", "What_x0020_would_x0020_you_x0020", "What would you_x0020")
             
             # Determine category
             if "Completed AI Win" in submission_type or "completed" in submission_type.lower():
@@ -366,10 +366,14 @@ def load_submissions():
             manager = get_field(row, "Your Manager")
             team = get_field(row, "Your Team ", "Your Team")
             
-            # Suggest tools based on problem keywords
-            suggested_tools = suggest_tools(
-                problem_statement + " " + proposed_solution + " " + challenge + " " + ai_solution_win
-            )
+            # For completed wins: extract ACTUAL tools mentioned in the description
+            # For ideas: suggest tools based on keywords
+            if category == "ai_win":
+                suggested_tools = extract_tools_from_text(ai_solution_win + " " + challenge)
+            else:
+                suggested_tools = suggest_tools(
+                    problem_statement + " " + proposed_solution + " " + challenge + " " + ai_solution_win
+                )
             
             # Normalize implementation stage
             if "not required" in impl_stage_raw.lower() or "completed win" in impl_stage_raw.lower() or "ready for production" in impl_stage_raw.lower():
@@ -453,6 +457,43 @@ def load_submissions():
             submissions.append(submission)
     
     return submissions
+
+
+def extract_tools_from_text(text: str) -> List[str]:
+    """Extract ACTUAL tools mentioned in completed project descriptions (no guessing)"""
+    if not text:
+        return []
+    text_lower = text.lower()
+    # Known tools to look for in completed project text
+    known_tools = {
+        "quick suite flow": "Amazon Quick Suite Flow",
+        "quicksuite flow": "Amazon Quick Suite Flow",
+        "quick suite chat": "Amazon Quick Suite Chat Agent",
+        "quicksuite chat": "Amazon Quick Suite Chat Agent",
+        "quick suite": "Amazon Quick Suite",
+        "quicksuite": "Amazon Quick Suite",
+        "quick sight": "Amazon QuickSight",
+        "quicksight": "Amazon QuickSight",
+        "textract": "Amazon Textract",
+        "comprehend": "Amazon Comprehend",
+        "sagemaker": "Amazon SageMaker",
+        "amazon q": "Amazon Q Business",
+        "q business": "Amazon Q Business",
+        "orcha": "Orcha AI",
+        "party rock": "Party Rock",
+        "python": "Python Automation",
+        "lex": "Amazon Lex",
+        "bedrock": "Amazon Bedrock",
+        "creature": "CREATURE Template Automation",
+        "gda": "GDA Dashboard",
+        "selenium": "Selenium Automation",
+        "streamlit": "Streamlit Dashboard",
+    }
+    found = []
+    for keyword, tool_name in known_tools.items():
+        if keyword in text_lower and tool_name not in found:
+            found.append(tool_name)
+    return found[:5]
 
 
 def suggest_tools(text: str) -> List[str]:
@@ -700,6 +741,72 @@ async def get_processes():
     data = load_submissions()
     processes = sorted(set(s["process"] for s in data if s["process"]))
     return processes
+
+
+@app.get("/api/duplicates")
+async def get_duplicates():
+    """Detect potential duplicate/similar submissions based on project name or problem similarity"""
+    data = load_submissions()
+    duplicates = []
+    seen = {}
+    
+    for s in data:
+        # Normalize key: project name or problem statement
+        key_text = (s.get("project_name") or s.get("problem_statement") or "").strip().lower()
+        if not key_text or len(key_text) < 5:
+            continue
+        
+        # Check for exact or near-duplicate (first 30 chars match, or >80% word overlap)
+        matched = False
+        for existing_key, existing_group in seen.items():
+            # Check prefix match (handles typos like ProcessGuardian vs ProcessGurdian)
+            if _is_similar(key_text, existing_key):
+                existing_group.append(s)
+                matched = True
+                break
+        
+        if not matched:
+            seen[key_text] = [s]
+    
+    # Return only groups with 2+ items (actual duplicates)
+    for key, group in seen.items():
+        if len(group) >= 2:
+            duplicates.append({
+                "match_key": key[:60],
+                "count": len(group),
+                "items": [{
+                    "id": s["id"],
+                    "project_name": s.get("project_name", ""),
+                    "problem_statement": s.get("problem_statement", "")[:100],
+                    "name": s.get("name", ""),
+                    "created_by": s.get("created_by", ""),
+                    "process": s.get("process", ""),
+                    "category": s.get("category", ""),
+                    "created": s.get("created", ""),
+                    "leader": s.get("leader", ""),
+                } for s in group]
+            })
+    
+    return {"total_duplicate_groups": len(duplicates), "duplicates": duplicates}
+
+
+def _is_similar(a: str, b: str) -> bool:
+    """Check if two strings are similar (fuzzy match for duplicate detection)"""
+    # Exact match
+    if a == b:
+        return True
+    # Prefix match (first 15 chars)
+    if len(a) >= 15 and len(b) >= 15 and a[:15] == b[:15]:
+        return True
+    # Word overlap > 70%
+    words_a = set(a.split())
+    words_b = set(b.split())
+    if words_a and words_b:
+        overlap = len(words_a & words_b)
+        total = max(len(words_a), len(words_b))
+        if total > 0 and overlap / total > 0.7:
+            return True
+    return False
 
 
 @app.post("/api/sync")

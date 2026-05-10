@@ -30,6 +30,7 @@ async function loadDashboard() {
         renderCompletedSplit(allCompleted);
         renderInProgressList(allInProgress);
         renderIdeasList(allPendingIdeas);
+        loadDuplicates();
         populateFilters(leaders, procs);
         initFilterListeners();
         initScrollAnimations();
@@ -240,7 +241,7 @@ function renderCompletedTable(containerId, items) {
             return `<tr class="data-row clickable" onclick="openDetail(${w.id})">
                 <td>${i+1}</td>
                 <td class="col-name">${w.project_name || 'Untitled'}</td>
-                <td>${w.project_owner || w.name}</td>
+                <td>${w.created_by || w.name || w.project_owner}</td>
                 <td class="col-process">${trunc(w.process, 25)}</td>
                 <td><span class="leader-chip">${w.leader}</span></td>
                 <td class="col-impact">${trunc(w.impact, 50)}</td>
@@ -291,6 +292,43 @@ function renderIdeasList(items) {
                 <td class="col-sde">${it.sde_contact?.name ? trunc(it.sde_contact.name,12) : 'TBD'}</td>
             </tr>`).join('')}
         </tbody></table>`;
+}
+
+// ─── Duplicates Detection ──────────────────────────────────────────────────────
+async function loadDuplicates() {
+    try {
+        const data = await fetch(`${API}/duplicates`).then(r => r.json());
+        const c = document.getElementById('duplicatesList');
+        const countEl = document.getElementById('dupCount');
+        if (countEl) countEl.textContent = `(${data.total_duplicate_groups} groups)`;
+        if (!c) return;
+        if (!data.duplicates || !data.duplicates.length) {
+            c.innerHTML = '<div class="empty-state">✅ No duplicates detected — all submissions are unique!</div>';
+            return;
+        }
+        c.innerHTML = data.duplicates.map((group, gi) => `
+            <div class="dup-group">
+                <h4 class="dup-group-title">⚠️ Group ${gi+1}: "${trunc(group.match_key, 50)}" — ${group.count} similar items</h4>
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Project / Problem</th><th>Submitter</th><th>Process</th><th>Type</th><th>Leader</th><th>Created</th></tr></thead>
+                    <tbody>${group.items.map((it, i) => `
+                        <tr class="data-row">
+                            <td>${i+1}</td>
+                            <td class="col-name">${it.project_name || trunc(it.problem_statement, 50) || 'N/A'}</td>
+                            <td>${it.created_by || it.name || 'Anonymous'}</td>
+                            <td class="col-process">${trunc(it.process, 25)}</td>
+                            <td><span class="status-pill status-${it.category === 'ai_win' ? 'completed' : 'pending'}">${it.category === 'ai_win' ? '🏆 Win' : it.category === 'replicate' ? '🔁 Repl' : '💡 Idea'}</span></td>
+                            <td><span class="leader-chip">${it.leader}</span></td>
+                            <td>${it.created ? it.created.substring(0,10) : '—'}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>`).join('');
+    } catch (err) {
+        console.error('Duplicates load error:', err);
+        const c = document.getElementById('duplicatesList');
+        if (c) c.innerHTML = '<div class="empty-state">Could not load duplicates</div>';
+    }
 }
 
 // ─── Filters ───────────────────────────────────────────────────────────────────

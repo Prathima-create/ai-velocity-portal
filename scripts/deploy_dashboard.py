@@ -240,28 +240,28 @@ def create_tabbed_dashboard(html_files: dict, month: str, year: str, output_path
 
     sorted_processes = sorted(dashboards.keys(), key=sort_key)
 
+    import html as html_module
+
     # Build tab buttons
     tab_buttons = []
     for i, proc in enumerate(sorted_processes):
         label = TAB_LABELS.get(proc, proc)
         active = ' active' if i == 0 else ''
         tab_buttons.append(
-            f'  <button class="tab-btn{active}" onclick="switchTab(this, \'{proc.lower()}\')">{label}</button>'
+            f'  <button class="tab-btn{active}" onclick="switchTab(\'{proc.lower()}\', this)">{label}</button>'
         )
 
-    # Build tab content divs with iframes
-    tab_contents = []
-    iframe_inits = []
+    # Build iframes with srcdoc ATTRIBUTE (entity-encoded) - this is the approach that works
+    iframe_elements = []
     for i, proc in enumerate(sorted_processes):
         active = ' active' if i == 0 else ''
         tab_id = proc.lower()
-        tab_contents.append(f'<div id="{tab_id}" class="tab-content{active}">')
-        tab_contents.append(f'  <iframe id="{tab_id}-frame"></iframe>')
-        tab_contents.append('</div>')
-
-        # JS to set srcdoc
-        escaped = json.dumps(dashboards[proc])
-        iframe_inits.append(f'document.getElementById("{tab_id}-frame").srcdoc = {escaped};')
+        # Entity-encode the HTML for srcdoc attribute
+        encoded_html = html_module.escape(dashboards[proc], quote=True)
+        iframe_elements.append(
+            f'<iframe id="frame-{tab_id}" class="tab-frame{active}"\n'
+            f'  srcdoc="{encoded_html}"></iframe>'
+        )
 
     wrapper = f'''<!DOCTYPE html>
 <html lang="en">
@@ -270,30 +270,28 @@ def create_tabbed_dashboard(html_files: dict, month: str, year: str, output_path
 <title>FinCom QC Dashboard - {month} {year}</title>
 <style>
 body {{ margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }}
-.tab-bar {{ display:flex; background:#1a1a2e; padding:0 20px; position:sticky; top:0; z-index:9999; }}
+nav.tab-bar {{ display:flex; background:#1a1a2e; padding:0 20px; position:sticky; top:0; z-index:9999; }}
 .tab-btn {{ padding:14px 28px; color:#aaa; cursor:pointer; border:none; background:none; font-size:15px; font-weight:600; border-bottom:3px solid transparent; transition:all 0.2s; }}
 .tab-btn:hover {{ color:#fff; }}
 .tab-btn.active {{ color:#fff; border-bottom-color:#4285f4; background:rgba(66,133,244,0.1); }}
-.tab-content {{ display:none; }}
-.tab-content.active {{ display:block; }}
-iframe {{ width:100%; border:none; height:calc(100vh - 52px); }}
+.tab-frame {{ display:none; width:100%; border:none; height:calc(100vh - 52px); }}
+.tab-frame.active {{ display:block; }}
 </style>
 </head>
 <body>
-<div class="tab-bar">
+<nav class="tab-bar">
 {chr(10).join(tab_buttons)}
-</div>
-{chr(10).join(tab_contents)}
+</nav>
+
+{chr(10).join(iframe_elements)}
+
 <script>
-var dashboards = {{}};
-function switchTab(btn, tab) {{
-  document.querySelectorAll('.tab-content').forEach(function(el) {{ el.classList.remove('active'); }});
+function switchTab(tab, btn) {{
+  document.querySelectorAll('.tab-frame').forEach(function(el) {{ el.classList.remove('active'); }});
   document.querySelectorAll('.tab-btn').forEach(function(el) {{ el.classList.remove('active'); }});
-  document.getElementById(tab).classList.add('active');
+  document.getElementById('frame-' + tab).classList.add('active');
   btn.classList.add('active');
 }}
-// Initialize iframes
-{chr(10).join(iframe_inits)}
 </script>
 </body>
 </html>'''

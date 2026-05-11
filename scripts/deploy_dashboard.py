@@ -270,16 +270,31 @@ def create_tabbed_dashboard(html_files: dict, month: str, year: str, output_path
 <title>FinCom QC Dashboard - {month} {year}</title>
 <style>
 body {{ margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }}
-nav.tab-bar {{ display:flex; background:#1a1a2e; padding:0 20px; position:sticky; top:0; z-index:9999; }}
-.tab-btn {{ padding:14px 28px; color:#aaa; cursor:pointer; border:none; background:none; font-size:15px; font-weight:600; border-bottom:3px solid transparent; transition:all 0.2s; }}
-.tab-btn:hover {{ color:#fff; }}
-.tab-btn.active {{ color:#fff; border-bottom-color:#4285f4; background:rgba(66,133,244,0.1); }}
+nav.tab-bar {{
+  display:flex; align-items:center; background:#fff; padding:0 24px;
+  position:sticky; top:0; z-index:9999;
+  border-bottom:1px solid #e0e0e0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}}
+.brand {{
+  font-size:18px; font-weight:700; color:#333; margin-right:32px; padding:14px 0;
+  font-style:italic;
+}}
+.brand span {{ color:#c0392b; }}
+.tab-btn {{
+  padding:14px 20px; color:#888; cursor:pointer; border:none; background:none;
+  font-size:14px; font-weight:600; border-bottom:3px solid transparent;
+  transition:all 0.2s; margin-right:4px;
+}}
+.tab-btn:hover {{ color:#333; }}
+.tab-btn.active {{ color:#333; border-bottom-color:#c0392b; }}
 .tab-frame {{ display:none; width:100%; border:none; height:calc(100vh - 52px); }}
 .tab-frame.active {{ display:block; }}
 </style>
 </head>
 <body>
 <nav class="tab-bar">
+  <div class="brand">FinCoM <span>QC</span></div>
 {chr(10).join(tab_buttons)}
 </nav>
 

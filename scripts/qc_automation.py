@@ -941,7 +941,7 @@ def compute_metrics(process_df, analyst_df,
         prv_anl_acc = round(prev_analyst_df['_accuracy'].mean(), 2) if prev_analyst_df is not None and len(prev_analyst_df) > 0 else None
 
         mom = {
-            'prev_label': month_label.split()[0] if month_label else 'Prev',
+            'prev_label': prev_month_label or 'Prev',
             'cur_label':  month_label,
             'prev_audited': prv_aud, 'cur_audited': cur_aud,
             'prev_fatal':   prv_fat, 'cur_fatal':   cur_fat,
@@ -1540,6 +1540,26 @@ def build_html(metrics, process_label, month_label, prev_month_label, missing_fi
     orgs_json = json.dumps(metrics['orgs'], default=str)
     analysts_json = json.dumps(metrics['analysts'], default=str)
 
+    # Build EMAIL_DATA - condensed data for client-side email generation
+    email_data = {
+        'process': process_label,
+        'month': month_label,
+        'dashboardUrl': '[paste your CloudFront / SharePoint dashboard URL here]',
+        'headline': metrics['headline'],
+        'mom': metrics.get('mom') or {},
+        'goal': metrics.get('defect_reduction_goal') or {},
+        'orgs': metrics['orgs'],
+        'topDefects': metrics.get('top_defects', [])[:3],  # only top 3 for email
+        'impact': metrics.get('impact_categorization', []),
+        'status': {
+            'disputes':         metrics.get('disputes'),
+            'rectification':    metrics.get('rectification'),
+            'ivoc':             metrics.get('ivoc'),
+            'defect_reduction': metrics.get('defect_reduction'),
+        },
+    }
+    email_data_json = json.dumps(email_data, default=str)
+
     html = HTML_TEMPLATE.format(
         process=process_label, month=month_label,
         filter_bar=filter_html, kpi_row=kpi_html, status_row=status_html,
@@ -1548,7 +1568,7 @@ def build_html(metrics, process_label, month_label, prev_month_label, missing_fi
         impact=impact_html,
         fatal_by_analyst=fba_html, analyst_table=at_html, footer=footer,
         rows_json=rows_json, mom_json=mom_json, orgs_json=orgs_json,
-        analysts_json=analysts_json,
+        analysts_json=analysts_json, email_data_json=email_data_json,
     )
     return html
 
@@ -1721,7 +1741,12 @@ td.rag-red   {{ color: #501313; font-weight: 500; }}
                 color: #92400e; margin-top: 16px; }}
 </style></head>
 <body>
-<div class="ph">{process} • {month}</div>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
+  <div class="ph" style="margin:0">{process} • {month}</div>
+  <div style="display:flex;gap:8px;">
+    <button onclick="sendEmail()" style="background:#BA7517;color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;">📧 Send Email</button>
+  </div>
+</div>
 
 {filter_bar}
 
@@ -1766,6 +1791,7 @@ const ROWS = {rows_json};
 const MOM = {mom_json};
 const ORGS = {orgs_json};
 const ANALYSTS = {analysts_json};
+const EMAIL_DATA = {email_data_json};
 let activeFilters = {{ orgs: [], analysts: [], categories: [], weeks: [], topics: [] }};
 
 // CSV Download Helper - exports an HTML element's table or list as CSV
@@ -1820,8 +1846,11 @@ function downloadSectionCSV(sectionId, filename) {{
     return;
   }}
 
-  const csv = rows.join('\\n');
-  const blob = new Blob([csv], {{ type: 'text/csv;charset=utf-8;' }});
+  // Use char codes to avoid Python f-string escape ambiguity
+  const NL = String.fromCharCode(13) + String.fromCharCode(10);
+  const BOM = String.fromCharCode(0xFEFF);
+  const csv = rows.join(NL);
+  const blob = new Blob([BOM + csv], {{ type: 'text/csv;charset=utf-8;' }});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1831,6 +1860,267 @@ function downloadSectionCSV(sectionId, filename) {{
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }}
+
+// ============================================================
+// EMAIL BODY GENERATION
+// ============================================================
+function buildEmailBodyHTML() {{
+  // Build a static email body from current dashboard data.
+  // All inline styles, table-based, no JS - Outlook-compatible.
+  const h = EMAIL_DATA.headline;
+  const mom = EMAIL_DATA.mom || {{}};
+  const goal = EMAIL_DATA.goal || {{}};
+  const orgs = EMAIL_DATA.orgs || [];
+  const topDefects = EMAIL_DATA.topDefects || [];
+  const impact = EMAIL_DATA.impact || [];
+  const status = EMAIL_DATA.status || {{}};
+  const process = EMAIL_DATA.process;
+  const month = EMAIL_DATA.month;
+  const dashUrl = EMAIL_DATA.dashboardUrl;
+
+  // Use bgcolor attribute (HTML4) + inline styles for Outlook dark-mode resistance
+  const TD = 'bgcolor="#FFFFFF" style="padding:8px 12px;border:1px solid #D3D1C7;font-family:Arial,sans-serif;font-size:13px;color:#2C2C2A;background-color:#FFFFFF;"';
+  const TDR = 'bgcolor="#FFFFFF" style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;font-family:Arial,sans-serif;font-size:13px;color:#2C2C2A;background-color:#FFFFFF;"';
+  const TH = 'bgcolor="#F1EFE8" style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;background-color:#F1EFE8;font-weight:500;text-align:left;font-family:Arial,sans-serif;font-size:13px;color:#2C2C2A;"';
+  const THR = 'bgcolor="#F1EFE8" style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;background-color:#F1EFE8;font-weight:500;text-align:right;font-family:Arial,sans-serif;font-size:13px;color:#2C2C2A;"';
+
+  let html = '<div style="font-family:Arial,sans-serif;color:#2C2C2A;max-width:760px;font-size:14px;line-height:1.5;">';
+
+  html += '<p style="color:#791F1F;font-style:italic;">&lt;Please do not forward&gt;</p>';
+  html += '<p>Dear Team,</p>';
+  html += `<p>Please find the <strong>${{month}} QC Audit Metrics for ${{process}}</strong> below.</p>`;
+  html += '<p>📄 Refer to <em>Page 0</em> for definitions and methodology: <strong>[your link]</strong></p>';
+
+  html += '<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>';
+
+  // EXECUTIVE SUMMARY PLACEHOLDER
+  html += '<h3 style="color:#2C2C2A;font-weight:500;">Executive Summary</h3>';
+  html += '<ul>';
+  html += '<li>[Add commentary on this month performance, key changes, watch items]</li>';
+  html += '<li>[Mention top analysts with fatal errors here]</li>';
+  html += '<li>[Recommended actions for May]</li>';
+  html += '</ul>';
+
+  html += '<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>';
+
+  // KPI TABLE
+  html += `<h3 style="color:#2C2C2A;font-weight:500;">Key Metrics — ${{month}}</h3>`;
+  html += '<table style="border-collapse:collapse;width:auto;margin:0 0 20px 0;"><tbody>';
+  html += `<tr><td ${{TH}}>Cases Audited</td><td ${{TDR}}>${{h.audited}}</td></tr>`;
+  let accStr = h.accuracy.toFixed(2) + '%';
+  if (mom.cur_anl_acc != null) accStr += ' (Process) / ' + mom.cur_anl_acc.toFixed(2) + '% (Analyst)';
+  html += `<tr><td ${{TH}}>Accuracy</td><td ${{TDR}}>${{accStr}}</td></tr>`;
+  let fatalStr = `${{h.fatal}} (Inap ${{h.inap}}, Conf ${{h.conf}})`;
+  if (h.analyst_fatal != null) fatalStr += ` / Analyst: ${{h.analyst_fatal}}`;
+  html += `<tr><td ${{TH}}>Fatal Errors</td><td ${{TDR}}>${{fatalStr}}</td></tr>`;
+  html += `<tr><td ${{TH}}>Total Defects</td><td ${{TDR}}>${{h.defects}}</td></tr>`;
+  html += '</tbody></table>';
+
+  // DEFECT REDUCTION GOAL BANNER
+  if (goal && goal.actual_change_pct != null) {{
+    const badge = goal.goal_met ? '✅ MET' : '❌ NOT MET';
+    const bg = goal.goal_met ? '#EAF3DE' : '#FCEBEB';
+    const fg = goal.goal_met ? '#173404' : '#501313';
+    html += `<div style="background:${{bg}};border:1px solid ${{fg}};padding:12px;border-radius:6px;margin:0 0 20px 0;color:${{fg}};">`;
+    html += `<strong>Defect Reduction Goal: ${{badge}}</strong> — Target −${{goal.target_pct.toFixed(0)}}% MoM (Inappropriate Resolution). `;
+    html += `${{goal.prev_label}}: ${{goal.prev_count}} → ${{goal.cur_label}}: ${{goal.cur_count}}. Actual: ${{goal.actual_change_pct.toFixed(1)}}%.`;
+    html += '</div>';
+  }}
+
+  // MoM COMPARISON
+  if (mom && mom.prev_label) {{
+    html += '<h3 style="color:#2C2C2A;font-weight:500;">Month-over-Month Comparison</h3>';
+    html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+    html += `<th ${{TH}}>Metric</th><th ${{THR}}>${{mom.prev_label}}</th><th ${{THR}}>${{mom.cur_label}}</th><th ${{THR}}>Δ</th>`;
+    html += '</tr></thead><tbody>';
+    html += `<tr><td ${{TD}}>Cases Audited</td><td ${{TDR}}>${{mom.prev_audited||0}}</td><td ${{TDR}}>${{mom.cur_audited||0}}</td><td ${{TDR}}>${{(mom.audited_delta>0?'+':'')+(mom.audited_delta||0)}}</td></tr>`;
+    html += `<tr><td ${{TD}}>Process Accuracy</td><td ${{TDR}}>${{(mom.prev_proc_acc||0).toFixed(2)}}%</td><td ${{TDR}}>${{(mom.cur_proc_acc||0).toFixed(2)}}%</td><td ${{TDR}}>${{(mom.proc_acc_delta>0?'+':'')+(mom.proc_acc_delta||0).toFixed(2)}}</td></tr>`;
+    if (mom.cur_anl_acc != null) html += `<tr><td ${{TD}}>Analyst Accuracy</td><td ${{TDR}}>${{(mom.prev_anl_acc||0).toFixed(2)}}%</td><td ${{TDR}}>${{(mom.cur_anl_acc||0).toFixed(2)}}%</td><td ${{TDR}}>${{(mom.anl_acc_delta>0?'+':'')+(mom.anl_acc_delta||0).toFixed(2)}}</td></tr>`;
+    html += `<tr><td ${{TD}}>Fatal Errors</td><td ${{TDR}}>${{mom.prev_fatal||0}}</td><td ${{TDR}}>${{mom.cur_fatal||0}}</td><td ${{TDR}}>${{(mom.fatal_delta>0?'+':'')+(mom.fatal_delta||0)}}</td></tr>`;
+    html += '</tbody></table>';
+  }}
+
+  // STATUS SUMMARY (4 cards as table rows)
+  html += '<h3 style="color:#2C2C2A;font-weight:500;">Status Summary</h3>';
+  html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+  html += `<th ${{TH}}>Status Type</th><th ${{THR}}>Total</th><th ${{THR}}>SLA %</th>`;
+  html += '</tr></thead><tbody>';
+  const statusKeys = [['disputes','Disputes'],['rectification','Rectification'],['ivoc','IVOC'],['defect_reduction','Defect Reduction']];
+  for (const [k, lbl] of statusKeys) {{
+    const s = status[k];
+    if (s && s.total != null) {{
+      const slaStr = s.sla_total > 0 ? `${{s.sla_met}}/${{s.sla_total}} (${{s.sla_pct.toFixed(1)}}%)` : 'N/A';
+      html += `<tr><td ${{TD}}>${{lbl}}</td><td ${{TDR}}>${{s.total}}</td><td ${{TDR}}>${{slaStr}}</td></tr>`;
+    }}
+  }}
+  html += '</tbody></table>';
+
+  // ORG SCORECARD
+  if (orgs && orgs.length > 0) {{
+    html += '<h3 style="color:#2C2C2A;font-weight:500;">Org Scorecard</h3>';
+    html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+    html += `<th ${{TH}}>Org</th><th ${{THR}}>Cases Audited</th><th ${{THR}}>Accuracy</th><th ${{THR}}>Fatal</th><th ${{THR}}>Non-Fatal Defects</th>`;
+    html += '</tr></thead><tbody>';
+    for (const o of orgs) {{
+      html += `<tr><td ${{TD}}>${{o.org}}</td><td ${{TDR}}>${{o.audited}}</td><td ${{TDR}}>${{o.accuracy.toFixed(2)}}%</td><td ${{TDR}}>${{o.fatal}}</td><td ${{TDR}}>${{o.nonfatal}}</td></tr>`;
+    }}
+    html += '</tbody></table>';
+  }}
+
+  // TOP 3 DEFECTS
+  if (topDefects && topDefects.length > 0) {{
+    html += '<h3 style="color:#2C2C2A;font-weight:500;">Top 3 Defects — Drivers and Potential Causes</h3>';
+    html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+    html += `<th ${{TH}}>Parameter</th><th ${{THR}}>Defects</th><th ${{THR}}>Contribution %</th><th ${{TH}}>Potential Causes</th>`;
+    html += '</tr></thead><tbody>';
+    const totalDefects = h.defects || 1;
+    for (const [name, cnt] of topDefects.slice(0, 3)) {{
+      const pct = (cnt / totalDefects * 100).toFixed(1);
+      html += `<tr><td ${{TD}}>${{name}}</td><td ${{TDR}}>${{cnt}}</td><td ${{TDR}}>${{pct}}%</td><td ${{TD}} style="color:#5F5E5A;font-style:italic;">[Fill potential causes]</td></tr>`;
+    }}
+    html += '</tbody></table>';
+  }}
+
+  // IMPACT CATEGORIZATION
+  if (impact && impact.length > 0) {{
+    html += '<h3 style="color:#2C2C2A;font-weight:500;">Defect Impact Categorization</h3>';
+    html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+    html += `<th ${{TH}}>Category</th><th ${{THR}}>Defects</th>`;
+    html += '</tr></thead><tbody>';
+    for (const r of impact) {{
+      html += `<tr><td ${{TD}}>${{r.category}}</td><td ${{TDR}}>${{r.defects}}</td></tr>`;
+    }}
+    html += '</tbody></table>';
+  }}
+
+  // TREND PLACEHOLDER
+  html += '<h3 style="color:#2C2C2A;font-weight:500;">Trend Analysis (Multi-Month)</h3>';
+  html += '<p style="color:#5F5E5A;font-style:italic;">[Insert multi-month trending table from past audit cycles. Manual entry.]</p>';
+
+  // DASHBOARD LINK
+  html += '<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>';
+  html += '<h3 style="color:#2C2C2A;font-weight:500;">Interactive QC Dashboard</h3>';
+  html += `<p><strong>🔗 Access:</strong> <a href="${{dashUrl}}" style="color:#BA7517;">${{dashUrl}}</a></p>`;
+  html += '<p>Dashboard capabilities:</p><ul>';
+  html += '<li>Live filtering across org, analyst, week, audit category, and defect topic</li>';
+  html += '<li>Drill-down on any KPI, chart, or table row for case-level audit commentary</li>';
+  html += '<li>Section-level CSV export for ad-hoc analysis</li>';
+  html += '<li>SLA tracking for Disputes, Rectification, IVOC, and Defect Reduction</li>';
+  html += '<li>Defect Impact Categorization by business impact</li>';
+  html += '<li>Defect Reduction Goal tracker against 10% MoM target</li>';
+  html += '</ul>';
+
+  // CALIBRATION
+  html += '<h3 style="color:#2C2C2A;font-weight:500;">Calibration Cycle</h3>';
+  html += '<table style="border-collapse:collapse;width:100%;margin:0 0 20px 0;"><thead><tr>';
+  html += `<th ${{TH}}>Calibration with Ops Team</th><th ${{TH}}>Parameter Revision</th><th ${{TH}}>QC SPOC</th><th ${{TH}}>QC Manager</th>`;
+  html += '</tr></thead><tbody><tr>';
+  html += `<td ${{TD}} style="color:#5F5E5A;">[Last / Next]</td><td ${{TD}} style="color:#5F5E5A;">[Last / Next]</td><td ${{TD}} style="color:#5F5E5A;">[SPOC names]</td><td ${{TD}} style="color:#5F5E5A;">[Manager LDAP]</td>`;
+  html += '</tr></tbody></table>';
+
+  html += '<p>Regards,<br/>Niki<br/>QC | Retail FinCoM<br/>Amazon</p>';
+  html += '</div>';
+
+  return html;
+}}
+
+function sendEmail() {{
+  const html = buildEmailBodyHTML();
+  const subject = `APQC_Retail FinCoM ${{EMAIL_DATA.process}} All-Orgs Audit Metrics_${{EMAIL_DATA.month}}`;
+
+  // Step 1: Try to copy HTML to clipboard
+  let clipboardOk = false;
+
+  const tryClipboard = async () => {{
+    try {{
+      if (navigator.clipboard && window.ClipboardItem) {{
+        const htmlBlob = new Blob([html], {{ type: 'text/html' }});
+        const textBlob = new Blob([html.replace(/<[^>]*>/g, '')], {{ type: 'text/plain' }});
+        const item = new ClipboardItem({{ 'text/html': htmlBlob, 'text/plain': textBlob }});
+        await navigator.clipboard.write([item]);
+        return true;
+      }} else if (navigator.clipboard && navigator.clipboard.writeText) {{
+        await navigator.clipboard.writeText(html);
+        return true;
+      }}
+    }} catch (err) {{
+      console.warn('Clipboard write failed:', err);
+    }}
+    return false;
+  }};
+
+  tryClipboard().then(ok => {{
+    clipboardOk = ok;
+    if (ok) {{
+      // Success path: use hidden anchor with target=_blank so Outlook opens
+      // via OS handoff without navigating the dashboard tab away
+      const mailto = `mailto:?subject=${{encodeURIComponent(subject)}}`;
+      const a = document.createElement('a');
+      a.href = mailto;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Show confirmation
+      setTimeout(() => {{
+        alert('✅ Email body copied to clipboard.\\n\\nOutlook is opening — click in the body area and press Ctrl+V to paste.\\n\\nThen:\\n• Add Executive Summary at the top\\n• Update Page 0 link\\n• Update Calibration cycle\\n• Review and Send');
+      }}, 100);
+    }} else {{
+      // Fallback: show modal with email body inside a textarea for manual copy
+      showEmailFallback(html, subject);
+    }}
+  }});
+}}
+
+function showEmailFallback(html, subject) {{
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:#FFFFFF;border-radius:10px;padding:24px;max-width:800px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+
+  modal.innerHTML = `
+    <h2 style="margin:0 0 12px 0;color:#2C2C2A;">📧 Email Body Ready</h2>
+    <p style="color:#5F5E5A;font-size:13px;margin:0 0 16px 0;">Clipboard access was blocked. Use the steps below instead:</p>
+    <ol style="font-size:13px;color:#2C2C2A;line-height:1.7;">
+      <li>Click the <strong>Select All</strong> button below</li>
+      <li>Press <strong>Ctrl+C</strong> to copy</li>
+      <li>Click <strong>Open in Outlook</strong> — Outlook opens with subject pre-filled</li>
+      <li>Click in the body area, press <strong>Ctrl+V</strong> to paste</li>
+      <li>Add Executive Summary, Page 0 link, Calibration cycle — review — Send</li>
+    </ol>
+    <div style="display:flex;gap:8px;margin:12px 0;">
+      <button id="selectAllBtn" style="background:#BA7517;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;">📋 Select All</button>
+      <button id="openOutlookBtn" style="background:#2C2C2A;color:white;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;">📧 Open in Outlook</button>
+      <button id="closeModalBtn" style="background:#F1EFE8;color:#2C2C2A;border:0.5px solid #D3D1C7;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto;">Close</button>
+    </div>
+    <div id="emailContent" contenteditable="true" style="border:0.5px solid #D3D1C7;border-radius:6px;padding:16px;max-height:400px;overflow-y:auto;background:#FAF8F4;font-size:12px;">${{html}}</div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  document.getElementById('selectAllBtn').onclick = () => {{
+    const content = document.getElementById('emailContent');
+    const range = document.createRange();
+    range.selectNodeContents(content);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }};
+  document.getElementById('openOutlookBtn').onclick = () => {{
+    window.location.href = `mailto:?subject=${{encodeURIComponent(subject)}}`;
+  }};
+  document.getElementById('closeModalBtn').onclick = () => {{
+    document.body.removeChild(overlay);
+  }};
+  overlay.onclick = (e) => {{
+    if (e.target === overlay) document.body.removeChild(overlay);
+  }};
+}}
+
 
 // Filter dropdown UI
 function toggleDD(btn) {{
@@ -2602,6 +2892,184 @@ def build_screenshot(metrics, process_label, month_label, prev_month_label, png_
     plt.savefig(png_path, dpi=120, bbox_inches='tight', facecolor='white')
     plt.close(fig)
     return png_path
+
+
+# ============================================================
+# EMAIL BODY BUILDER (Outlook-paste-friendly)
+# ============================================================
+def build_email_body(metrics, process_label, month_label, prev_month_label, dashboard_url, html_path):
+    """Generate email-body HTML file. Inline CSS, table-based, no JS.
+    User opens in browser, Ctrl+A, Ctrl+C, paste into Outlook."""
+    h = metrics['headline']
+    mom = metrics.get('mom') or {}
+    goal = metrics.get('defect_reduction_goal') or {}
+    top_defects = metrics.get('top_defects', [])
+    impact = metrics.get('impact_categorization', [])
+    orgs = metrics.get('orgs', [])
+
+    # Build pieces
+    # KPI table
+    kpi_rows = ''
+    kpi_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;font-weight:500;">Cases Audited</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{h["audited"]}</td></tr>'
+    acc_str = f"{h['accuracy']:.2f}%"
+    if mom.get('cur_anl_acc') is not None:
+        acc_str += f" (Process) / {mom['cur_anl_acc']:.2f}% (Analyst)"
+    kpi_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;font-weight:500;">Accuracy</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{acc_str}</td></tr>'
+    fatal_str = f"{h['fatal']} (Inap {h['inap']}, Conf {h['conf']})"
+    if h.get('analyst_fatal') is not None:
+        fatal_str += f" / Analyst: {h['analyst_fatal']}"
+    kpi_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;font-weight:500;">Fatal Errors</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{fatal_str}</td></tr>'
+    kpi_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;font-weight:500;">Total Defects</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{h["defects"]}</td></tr>'
+    if goal.get('actual_change_pct') is not None:
+        badge = '✅ MET' if goal['goal_met'] else '❌ NOT MET'
+        kpi_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;background:#F1EFE8;font-weight:500;">Defect Reduction Goal</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{goal["actual_change_pct"]:+.1f}% vs −{goal["target_pct"]:.0f}% target — {badge}</td></tr>'
+
+    # MoM table
+    mom_table = ''
+    if mom:
+        mom_table = f'''
+<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:0 0 20px 0;">
+  <thead><tr style="background:#F1EFE8;">
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Metric</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('prev_label','Prev')}</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('cur_label','Cur')}</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">Δ</th>
+  </tr></thead>
+  <tbody>
+    <tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">Cases Audited</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('prev_audited',0)}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('cur_audited',0)}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('audited_delta',0):+d}</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">Process Accuracy</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('prev_proc_acc',0):.2f}%</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('cur_proc_acc',0):.2f}%</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('proc_acc_delta',0):+.2f}</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">Analyst Accuracy</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('prev_anl_acc',0):.2f}%</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('cur_anl_acc',0):.2f}%</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('anl_acc_delta',0):+.2f}</td></tr>
+    <tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">Fatal Errors</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('prev_fatal',0)}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('cur_fatal',0)}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{mom.get('fatal_delta',0):+d}</td></tr>
+  </tbody>
+</table>'''
+
+    # Top 3 defects (table with placeholder for causes)
+    top3_rows = ''
+    for name, cnt in top_defects[:3]:
+        pct = (cnt / h['defects'] * 100) if h['defects'] else 0
+        top3_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">{name}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{cnt}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{pct:.1f}%</td><td style="padding:8px 12px;border:1px solid #D3D1C7;color:#5F5E5A;font-style:italic;">[Fill potential causes]</td></tr>'
+
+    # Impact categorization
+    impact_rows = ''
+    for r in impact:
+        impact_rows += f'<tr><td style="padding:8px 12px;border:1px solid #D3D1C7;">{r["category"]}</td><td style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">{r["defects"]}</td></tr>'
+
+    # Final HTML
+    html = f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>QC Email Body — {process_label} {month_label}</title></head>
+<body style="font-family:Arial,sans-serif;color:#2C2C2A;max-width:760px;margin:20px auto;padding:20px;background:#FAF8F4;font-size:14px;line-height:1.5;">
+
+<p style="color:#5F5E5A;font-size:12px;font-style:italic;border:1px dashed #D3D1C7;padding:8px;background:#FFFFFF;">📋 <strong>Instructions:</strong> Open in browser → press Ctrl+A → Ctrl+C → paste into Outlook (HTML format). Add your Executive Summary and Page 0 link manually before sending.</p>
+
+<p style="color:#791F1F;font-style:italic;">&lt;Please do not forward&gt;</p>
+
+<p>Dear Team,</p>
+
+<p>Please find the <strong>{month_label} QC Audit Metrics for {process_label}</strong> below. The complete metrics, drill-downs, and case-level data are available in the interactive dashboard linked at the end of this email.</p>
+
+<p>📄 Refer to <em>Page 0</em> for definitions and methodology: <strong>[your link]</strong></p>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Executive Summary</h3>
+<ul>
+  <li>[April performance mixed. Process accuracy at X%, Analyst accuracy at X%]</li>
+  <li>[Reopen volume +X% MoM — material inflow shift; recommend ops root-cause review]</li>
+  <li>[Top defects: Defect 1 and Defect 2 contributed X% of total defects — concentrated in orgs]</li>
+  <li>[Defect Reduction goal MET / NOT MET — X% reduction vs −10% target]</li>
+  <li>[Org 1, Org 2 below 95% threshold — coaching pipeline active for May]</li>
+</ul>
+
+<p style="color:#5F5E5A;font-size:12px;font-style:italic;">Detailed KPIs, MoM comparisons, org/analyst breakdowns, and SLA status are available in the dashboard (link below).</p>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Key Metrics — {month_label}</h3>
+<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:0 0 20px 0;">
+  <tbody>{kpi_rows}</tbody>
+</table>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Month-over-Month Comparison</h3>
+{mom_table}
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Top 3 Defects — Drivers and Potential Causes</h3>
+<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:0 0 20px 0;">
+  <thead><tr style="background:#F1EFE8;">
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Parameter</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">Defects</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">Contribution %</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Potential Causes</th>
+  </tr></thead>
+  <tbody>{top3_rows}</tbody>
+</table>
+
+<p style="color:#5F5E5A;font-size:12px;font-style:italic;">For full defect parameter breakdown and case-level drill-downs, refer to the dashboard.</p>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Defect Impact Categorization</h3>
+<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:0 0 20px 0;">
+  <thead><tr style="background:#F1EFE8;">
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Category</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:right;">Defects</th>
+  </tr></thead>
+  <tbody>{impact_rows}</tbody>
+</table>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Trend Analysis — Dec'25 to {month_label}</h3>
+<p style="color:#5F5E5A;font-style:italic;">[Insert multi-month trending table from past audit cycles. Manual entry.]</p>
+
+<p style="color:#5F5E5A;font-size:12px;font-style:italic;">For real-time MoM and WoW views with org-level filtering, refer to the dashboard.</p>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Interactive QC Dashboard</h3>
+<p><strong>🔗 Access:</strong> <a href="{dashboard_url}" style="color:#BA7517;">{dashboard_url}</a></p>
+
+<p>The dashboard provides the complete view of this month's metrics and is structured for self-service use. Key capabilities:</p>
+<ul>
+  <li>Live filtering across org, analyst, week, audit category, and defect topic</li>
+  <li>Drill-down on any KPI, chart, or table row to view underlying cases with audit commentary</li>
+  <li>Section-level CSV export for ad-hoc analysis</li>
+  <li>SLA tracking for Disputes, Rectification, IVOC, and Defect Reduction</li>
+  <li>Defect Impact Categorization mapping each defect to a business-impact category</li>
+  <li>Defect Reduction Goal tracker against the 10% month-over-month target</li>
+</ul>
+
+<p>For any specific cuts of the data or further drill-downs, please respond to this email.</p>
+
+<hr style="border:none;border-top:1px solid #D3D1C7;margin:20px 0;"/>
+
+<h3 style="color:#2C2C2A;font-weight:500;">Calibration Cycle</h3>
+<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:13px;margin:0 0 20px 0;">
+  <thead><tr style="background:#F1EFE8;">
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Calibration with Ops Team</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">Audit Parameter Revision</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">QC SPOC</th>
+    <th style="padding:8px 12px;border:1px solid #D3D1C7;text-align:left;">QC Manager</th>
+  </tr></thead>
+  <tbody><tr>
+    <td style="padding:8px 12px;border:1px solid #D3D1C7;color:#5F5E5A;">[Last / Next]</td>
+    <td style="padding:8px 12px;border:1px solid #D3D1C7;color:#5F5E5A;">[Last / Next]</td>
+    <td style="padding:8px 12px;border:1px solid #D3D1C7;color:#5F5E5A;">[SPOC names]</td>
+    <td style="padding:8px 12px;border:1px solid #D3D1C7;color:#5F5E5A;">[Manager LDAP]</td>
+  </tr></tbody>
+</table>
+
+<p>Regards,<br/>
+Niki<br/>
+QC | Retail FinCoM<br/>
+Amazon</p>
+
+</body></html>'''
+
+    with open(html_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+    return html_path
 
 
 # ============================================================

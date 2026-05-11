@@ -392,8 +392,21 @@ def main():
     print(f"CloudFront:        {CF_DISTRIBUTION_ID}")
     print()
 
+    # Step 0: Auto-sync qc_automation.py from SharePoint if it's newer
+    sp_script = SHAREPOINT_BASE / "qc_automation.py"
+    local_script = Path(__file__).parent / "qc_automation.py"
+    if sp_script.exists():
+        sp_mtime = sp_script.stat().st_mtime
+        local_mtime = local_script.stat().st_mtime if local_script.exists() else 0
+        if sp_mtime > local_mtime:
+            import shutil
+            shutil.copy2(str(sp_script), str(local_script))
+            print(f"  ✓ Synced qc_automation.py from SharePoint (newer version found)")
+        else:
+            print(f"  ✓ qc_automation.py is up to date")
+
     # Step 1: Discover folders
-    print("Step 1: Discovering process folders...")
+    print("\nStep 1: Discovering process folders...")
     months_data = discover_folders(SHAREPOINT_BASE)
 
     if not months_data:

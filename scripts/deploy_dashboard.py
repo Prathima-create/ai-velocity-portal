@@ -34,10 +34,48 @@ from collections import defaultdict
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # ============================================================
-# CONFIGURATION — Change these if your setup differs
+# CONFIGURATION — Auto-detects the current user's SharePoint path
 # ============================================================
-# SharePoint sync folder (where process folders live)
-SHAREPOINT_BASE = Path(r"C:\Users\pratpk\amazon.com\Automation hosting - Documents\Fincom_QC")
+# SharePoint sync folder (auto-detect based on current user)
+def _find_sharepoint_base():
+    """Auto-detect the SharePoint Fincom_QC folder for the current user.
+    Handles different sync locations: direct under home, under Documents/DRIVE, etc."""
+    home = Path.home()
+
+    # Search these root locations for amazon.com folder
+    search_roots = [
+        home,                          # C:\Users\XXX\amazon.com\...
+        home / "Documents" / "DRIVE",  # C:\Users\XXX\Documents\DRIVE\amazon.com\...
+        home / "Documents",            # C:\Users\XXX\Documents\amazon.com\...
+        home / "OneDrive",             # C:\Users\XXX\OneDrive\amazon.com\...
+    ]
+
+    for root in search_roots:
+        amazon_dir = root / "amazon.com"
+        if not amazon_dir.exists():
+            continue
+        # Search all subfolders for one containing Fincom_QC
+        try:
+            for d in amazon_dir.iterdir():
+                if d.is_dir() and "automation" in d.name.lower() and "hosting" in d.name.lower():
+                    fq = d / "Fincom_QC"
+                    if fq.exists():
+                        return fq
+        except PermissionError:
+            continue
+
+    # If script is run from the Fincom_QC folder itself, use that
+    script_parent = Path(__file__).parent
+    if (script_parent / "qc_automation.py").exists() and any(
+        d.name.split('_')[1:2] and d.name.split('_')[1] in ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+        for d in script_parent.iterdir() if d.is_dir()
+    ):
+        return script_parent
+
+    # Fallback
+    return home / "amazon.com" / "Automation hosting - Documents" / "Fincom_QC"
+
+SHAREPOINT_BASE = _find_sharepoint_base()
 
 # S3 bucket and CloudFront
 S3_BUCKET = "fincom-qc-data"
@@ -267,6 +305,10 @@ def create_tabbed_dashboard(html_files: dict, month: str, year: str, output_path
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="refresh" content="120">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>FinCom QC Dashboard - {month} {year}</title>
 <style>
 body {{ margin:0; font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }}
@@ -321,28 +363,70 @@ function switchTab(tab, btn) {{
 # STEP 4: Upload to S3 + Invalidate CloudFront
 # ============================================================
 def upload_to_s3(html_path: Path, dry_run=False):
-    """Upload HTML to S3 and invalidate CloudFront."""
+    """Upload HTML to S3 and invalidate CloudFront.
+    Uses boto3 (Python) first, falls back to AWS CLI."""
     if dry_run:
         print(f"\n[DRY RUN] Would upload {html_path.name} to S3 and invalidate CloudFront")
         return True
 
     print(f"\nUploading to S3...")
-    success = True
 
+    # Try boto3 first (no AWS CLI needed)
+    try:
+        import boto3
+        session = boto3.Session(profile_name=AWS_PROFILE)
+        s3 = session.client('s3')
+        cf = session.client('cloudfront')
+
+        html_content = html_path.read_bytes()
+        for s3_key in S3_PATHS:
+            print(f"  → s3://{S3_BUCKET}/{s3_key}")
+            s3.put_object(
+                Bucket=S3_BUCKET, Key=s3_key,
+                Body=html_content, ContentType='text/html',
+                CacheControl='no-cache, no-store, must-revalidate, max-age=0'
+            )
+            print(f"  ✓ Uploaded")
+
+        print(f"\nInvalidating CloudFront ({CF_DISTRIBUTION_ID})...")
+        resp = cf.create_invalidation(
+            DistributionId=CF_DISTRIBUTION_ID,
+            InvalidationBatch={
+                'Paths': {'Quantity': 1, 'Items': ['/*']},
+                'CallerReference': str(datetime.now().timestamp())
+            }
+        )
+        status = resp['Invalidation']['Status']
+        print(f"  ✓ Invalidation: {status}")
+        print(f"\n✓ Dashboard live at: {DASHBOARD_URL}")
+        return True
+
+    except ImportError:
+        print("  boto3 not found, trying AWS CLI...")
+    except Exception as e:
+        print(f"  boto3 error: {e}, trying AWS CLI...")
+
+    # Fallback to AWS CLI
+    success = True
     for s3_key in S3_PATHS:
         cmd = [
             "aws", "s3", "cp", str(html_path),
             f"s3://{S3_BUCKET}/{s3_key}",
             "--content-type", "text/html",
+            "--cache-control", "no-cache, no-store, must-revalidate, max-age=0",
             "--profile", AWS_PROFILE
         ]
         print(f"  → s3://{S3_BUCKET}/{s3_key}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"  ERROR: {result.stderr}")
-            success = False
-        else:
-            print(f"  ✓ Uploaded")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"  ERROR: {result.stderr}")
+                success = False
+            else:
+                print(f"  ✓ Uploaded")
+        except FileNotFoundError:
+            print(f"  ERROR: AWS CLI not found! Install boto3: pip install boto3")
+            return False
 
     # Invalidate CloudFront
     print(f"\nInvalidating CloudFront ({CF_DISTRIBUTION_ID})...")
@@ -354,11 +438,15 @@ def upload_to_s3(html_path: Path, dry_run=False):
         "--query", "Invalidation.Status",
         "--output", "text"
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode == 0:
-        print(f"  ✓ Invalidation: {result.stdout.strip()}")
-    else:
-        print(f"  ERROR: {result.stderr}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"  ✓ Invalidation: {result.stdout.strip()}")
+        else:
+            print(f"  ERROR: {result.stderr}")
+            success = False
+    except FileNotFoundError:
+        print(f"  ERROR: AWS CLI not found for CloudFront invalidation")
         success = False
 
     if success:
@@ -392,19 +480,6 @@ def main():
     print(f"CloudFront:        {CF_DISTRIBUTION_ID}")
     print()
 
-    # Step 0: Auto-sync qc_automation.py from SharePoint if it's newer
-    sp_script = SHAREPOINT_BASE / "qc_automation.py"
-    local_script = Path(__file__).parent / "qc_automation.py"
-    if sp_script.exists():
-        sp_mtime = sp_script.stat().st_mtime
-        local_mtime = local_script.stat().st_mtime if local_script.exists() else 0
-        if sp_mtime > local_mtime:
-            import shutil
-            shutil.copy2(str(sp_script), str(local_script))
-            print(f"  ✓ Synced qc_automation.py from SharePoint (newer version found)")
-        else:
-            print(f"  ✓ qc_automation.py is up to date")
-
     # Step 1: Discover folders
     print("\nStep 1: Discovering process folders...")
     months_data = discover_folders(SHAREPOINT_BASE)
@@ -430,7 +505,7 @@ def main():
     print(f"\n  → Target: {month} {year} ({len(process_folders)} processes: {', '.join(sorted(process_folders.keys()))})")
 
     # Step 2: Generate dashboards
-    script_dir = Path(__file__).parent
+    script_dir = SHAREPOINT_BASE  # Use qc_automation.py from SharePoint folder
     if args.skip_generate:
         print("\nStep 2: SKIPPED (--skip-generate)")
         html_files = {}
